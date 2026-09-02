@@ -1,0 +1,63 @@
+<section id="view-evidence" class="view">
+  <h2>Evidence Catalogue</h2>
+
+  <div class="toolbar" id="evidenceToolbar">
+    <div class="toolbar-row">
+      <label for="evidenceSearch" class="visually-hidden">Search evidence</label>
+      <input type="text" id="evidenceSearch" placeholder="Search evidence by title, summary, or tag&hellip;"
+        autocomplete="off">
+
+      <label for="filterType" class="visually-hidden">Filter by type</label>
+      <select id="filterType">
+        <option value="">All types</option>
+      </select>
+
+      <label for="filterPerson" class="visually-hidden">Filter by person</label>
+      <select id="filterPerson">
+        <option value="">All people</option>
+      </select>
+
+      <label for="filterLocation" class="visually-hidden">Filter by location</label>
+      <select id="filterLocation">
+        <option value="">All locations</option>
+      </select>
+    </div>
+    <div class="toolbar-row">
+      <label for="filterStatus" class="visually-hidden">Filter by status</label>
+      <select id="filterStatus">
+        <option value="">All statuses</option>
+        <option value="unreviewed">Unreviewed</option>
+        <option value="reviewed">Reviewed</option>
+        <option value="flagged">Flagged</option>
+      </select>
+
+      <label for="filterRelevance" class="visually-hidden">Filter by relevance</label>
+      <select id="filterRelevance">
+        <option value="">All relevance</option>
+        <option value="unknown">Unknown</option>
+        <option value="relevant">Relevant</option>
+        <option value="irrelevant">Irrelevant</option>
+      </select>
+
+      <label for="sortEvidence" class="visually-hidden">Sort evidence</label>
+      <select id="sortEvidence">
+        <option value="date-desc">Newest first</option>
+        <option value="date-asc">Oldest first</option>
+        <option value="title-asc">Title (A&ndash;Z)</option>
+        <option value="title-desc">Title (Z&ndash;A)</option>
+      </select>
+
+      <button type="button" id="clearFiltersBtn" class="btn btn-secondary">Clear filters</button>
+    </div>
+  </div>
+
+  <div id="evidenceListContainer">
+    <div id="evidenceLoadingIndicator" class="evidence-loading hidden">
+      <div class="spinner"></div>
+      <p>Loading evidence&hellip;</p>
+    </div>
+    <div id="evidenceList" class="evidence-grid"></div>
+  </div>
+
+  <div id="evidenceDetailSection" class="evidence-detail hidden"></div>
+</section>

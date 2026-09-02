@@ -1,0 +1,41 @@
+<section id="view-dashboard" class="view">
+  <h2>Case Dashboard</h2>
+
+  <div class="intro-card">
+    <h3>How to use this portal</h3>
+    <p>
+      Everything gathered on the case so far is organised into four working views. Use the
+      navigation bar at the top to move between them at any time.
+    </p>
+    <div class="howto-grid">
+      <div class="howto-item">
+        <h4>1. Evidence Catalogue</h4>
+        <p>Search, filter, and sort every evidence item. Open one for full details, related
+        people and locations, and to add a private note.</p>
+        <button type="button" class="btn btn-secondary btn-small" onclick="navigateTo('evidence')">Go to Evidence</button>
+      </div>
+      <div class="howto-item">
+        <h4>2. People &amp; Locations</h4>
+        <p>Read profiles and statements from the six team members involved, and look up the
+        six key locations in the investigation.</p>
+        <button type="button" class="btn btn-secondary btn-small" onclick="navigateTo('people')">Go to People &amp; Locations</button>
+      </div>
+      <div class="howto-item">
+        <h4>3. Timeline</h4>
+        <p>Walk through events in chronological order, filter by person, location, or type, and
+        jump straight to the evidence behind any event.</p>
+        <button type="button" class="btn btn-secondary btn-small" onclick="navigateTo('timeline')">Go to Timeline</button>
+      </div>
+      <div class="howto-item">
+        <h4>4. Investigator Workspace</h4>
+        <p>Your bookmarked evidence and notes collect here. Draft a hypothesis — who you
+        suspect, why, and how confident you are — it's saved automatically in your browser.</p>
+        <button type="button" class="btn btn-secondary btn-small" onclick="navigateTo('workspace')">Go to Workspace</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dashboardContent">
+    <!-- rendered dynamically by dashboard.js -->
+  </div>
+</section>

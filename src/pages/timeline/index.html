@@ -1,0 +1,28 @@
+<section id="view-timeline" class="view">
+  <h2>Investigation Timeline</h2>
+  <div class="toolbar" id="timelineToolbar">
+    <div class="toolbar-row">
+      <label for="timelineOrder" class="visually-hidden">Order</label>
+      <select id="timelineOrder">
+        <option value="asc">Oldest first</option>
+        <option value="desc">Newest first</option>
+      </select>
+
+      <label for="timelinePersonFilter" class="visually-hidden">Filter by person</label>
+      <select id="timelinePersonFilter">
+        <option value="">All people</option>
+      </select>
+
+      <label for="timelineLocationFilter" class="visually-hidden">Filter by location</label>
+      <select id="timelineLocationFilter">
+        <option value="">All locations</option>
+      </select>
+
+      <label for="timelineTypeFilter" class="visually-hidden">Filter by event type</label>
+      <select id="timelineTypeFilter">
+        <option value="">All event types</option>
+      </select>
+    </div>
+  </div>
+  <div id="timelineContainer" class="timeline-container"></div>
+</section>

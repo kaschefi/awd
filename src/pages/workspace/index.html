@@ -1,0 +1,64 @@
+<section id="view-workspace" class="view">
+  <h2>Investigator Workspace</h2>
+
+  <div class="workspace-grid">
+    <div class="workspace-col">
+      <h3>Bookmarked Evidence</h3>
+      <div id="bookmarksList" class="bookmarks-list"></div>
+    </div>
+
+    <div class="workspace-col">
+      <h3>Personal Notes</h3>
+      <p class="hint-text">Notes are attached to whichever evidence item is currently open in the Evidence view.</p>
+      <div id="notesList" class="notes-list"></div>
+    </div>
+  </div>
+
+  <div class="hypothesis-card">
+    <h3>Hypothesis Draft</h3>
+    <form id="hypothesisForm">
+      <div class="form-row">
+        <label for="hypSuspect">Suspected responsible person</label>
+        <select id="hypSuspect">
+          <option value="">Select a person&hellip;</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="hypNature">Accidental or deliberate incident</label>
+        <select id="hypNature">
+          <option value="">Select&hellip;</option>
+          <option value="accidental">Accidental</option>
+          <option value="deliberate">Deliberate</option>
+          <option value="unclear">Unclear</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="hypEvidence">Selected supporting evidence</label>
+        <select id="hypEvidence" multiple size="6"></select>
+      </div>
+
+      <div class="form-row">
+        <label for="hypConfidence">Confidence (0&ndash;100)</label>
+        <input type="range" id="hypConfidence" min="0" max="100" value="50">
+        <output id="hypConfidenceValue">50</output>
+      </div>
+
+      <div class="form-row">
+        <label for="hypExplanation">Written explanation</label>
+        <textarea id="hypExplanation" rows="4" placeholder="Explain your reasoning&hellip;"></textarea>
+      </div>
+
+      <div class="form-row">
+        <label for="hypAlternative">Alternative explanation</label>
+        <textarea id="hypAlternative" rows="3" placeholder="What else could explain the evidence?"></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" onclick="saveHypothesis()">Save hypothesis draft</button>
+        <span id="hypothesisSavedMsg" class="saved-msg hidden">Saved</span>
+      </div>
+    </form>
+  </div>
+</section>

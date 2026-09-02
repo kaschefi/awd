@@ -1,0 +1,103 @@
+import { state } from '../../state.js';
+
+export function switchPeopleTab(tab) {
+  state.currentPeopleTab = tab;
+  var peoplePanel = document.getElementById("peoplePanel");
+  var locationsPanel = document.getElementById("locationsPanel");
+  var peopleTabBtn = document.getElementById("tabPeopleBtn");
+  var locationsTabBtn = document.getElementById("tabLocationsBtn");
+
+  if (tab === "people") {
+    peoplePanel.classList.remove("hidden");
+    locationsPanel.classList.add("hidden");
+    peopleTabBtn.classList.add("active");
+    locationsTabBtn.classList.remove("active");
+  } else {
+    peoplePanel.classList.add("hidden");
+    locationsPanel.classList.remove("hidden");
+    peopleTabBtn.classList.remove("active");
+    locationsTabBtn.classList.add("active");
+  }
+}
+
+function countEvidenceForPerson(person) {
+  var count = 0;
+  for (var i = 0; i < state.allEvidence.length; i++) {
+    var ev = state.allEvidence[i];
+    if (ev.personIds && (ev.personIds.indexOf(person.id) !== -1 || ev.personIds.indexOf(person.name) !== -1)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+export function renderPeople() {
+  var container = document.getElementById("peoplePanel");
+  if (!container) return;
+  var html = "";
+  for (var i = 0; i < state.allPeople.length; i++) {
+    var person = state.allPeople[i]; 
+    var avatarSrc = "../" + person.avatar; // Adjust the path to the avatar image
+    var count = countEvidenceForPerson(person);
+
+    html += '<div class="person-card">';
+    html += '<div class="person-card-header">';
+    html += '<img class="person-avatar" src="' + avatarSrc + '" alt="Portrait of ' + person.name + '">';
+    html += "<div><h3>" + person.name + "</h3><div class=\"person-role\">" + person.role + "</div></div>";
+    html += "</div>";
+    html += "<p><strong>Speciality:</strong> " + person.speciality + "</p>";
+    html += "<ul>";
+    for (var r = 0; r < person.responsibilities.length; r++) {
+      html += "<li>" + person.responsibilities[r] + "</li>";
+    }
+    html += "</ul>";
+    html += '<div class="person-statement">&ldquo;' + person.statement + '&rdquo;</div>';
+    html += "<p>" + count + " related evidence item" + (count === 1 ? "" : "s") + " &mdash; ";
+    html += '<button type="button" class="evidence-count-link" data-person-id="' + person.id + '">view</button></p>';
+    html += "</div>";
+  }
+  container.innerHTML = html;
+
+  var links = container.querySelectorAll(".evidence-count-link");
+  for (var l = 0; l < links.length; l++) {
+    links[l].addEventListener("click", function (e) {
+      var personId = e.target.getAttribute("data-person-id");
+      window.location.hash = "evidence";
+      setTimeout(function () {
+        var filterEl = document.getElementById("filterPerson");
+        if (filterEl) {
+          filterEl.value = personId;
+          filterEl.dispatchEvent(new Event("change"));
+        }
+      }, 50);
+    });
+  }
+}
+
+export function renderLocations() {
+  var container = document.getElementById("locationsPanel");
+  if (!container) return;
+
+  var html = "";
+  for (var i = 0; i < state.allLocations.length; i++) {
+    var loc = state.allLocations[i];
+    html += '<div class="location-card">';
+    html += "<h3>" + loc.id + " &mdash; " + loc.name + "</h3>";
+    html += "<p>" + loc.description + "</p>";
+    html += "<p><strong>Contains:</strong></p><ul>";
+    for (var c = 0; c < loc.contains.length; c++) {
+      html += "<li>" + loc.contains[c] + "</li>";
+    }
+    html += "</ul></div>";
+  }
+  container.innerHTML = html;
+}
+
+export function init() {
+  renderPeople();
+  renderLocations();
+  switchPeopleTab(state.currentPeopleTab || "people");
+
+  document.getElementById("tabPeopleBtn").addEventListener("click", () => switchPeopleTab('people'));
+  document.getElementById("tabLocationsBtn").addEventListener("click", () => switchPeopleTab('locations'));
+}

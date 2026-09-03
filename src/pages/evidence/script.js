@@ -60,6 +60,28 @@ export function getFilteredEvidence() {
     if (matches) results.push(item);
   }
 
+  // Apply current sort order
+  var sortEl = document.getElementById("sortEvidence");
+  var sortValue = sortEl ? sortEl.value : "date-desc";
+
+  if (sortValue === "title-asc") {
+    results.sort(function (a, b) {
+      return a.title.localeCompare(b.title);
+    });
+  } else if (sortValue === "title-desc") {
+    results.sort(function (a, b) {
+      return b.title.localeCompare(a.title);
+    });
+  } else if (sortValue === "date-asc") {
+    results.sort(function (a, b) {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    });
+  } else {
+    results.sort(function (a, b) {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+  }
+
   state.filteredEvidence = results;
   return results;
 }
@@ -143,25 +165,6 @@ function handleBookmarkClick(evidenceId) {
 }
 
 export function handleSortChange() {
-  var sortValue = document.getElementById("sortEvidence").value;
-
-  if (sortValue === "title-asc") {
-    state.filteredEvidence.sort(function (a, b) {
-      return a.title.localeCompare(b.title);
-    });
-  } else if (sortValue === "title-desc") {
-    state.filteredEvidence.sort(function (a, b) {
-      return b.title.localeCompare(a.title);
-    });
-  } else if (sortValue === "date-asc") {
-    state.filteredEvidence.sort(function (a, b) {
-      return new Date(a.timestamp) - new Date(b.timestamp);
-    });
-  } else {
-    state.filteredEvidence.sort(function (a, b) {
-      return new Date(b.timestamp) - new Date(a.timestamp);
-    });
-  }
   renderEvidenceList();
 }
 

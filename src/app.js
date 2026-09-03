@@ -1,7 +1,7 @@
-import { 
-  state, 
-  loadBookmarksFromStorage, 
-  loadNotesFromStorage, 
+import {
+  state,
+  loadBookmarksFromStorage,
+  loadNotesFromStorage,
   applyStoredBookmarkFlags,
   loadNoteAsync
 } from './state.js';
@@ -189,11 +189,11 @@ async function initApp() {
 
   window.addEventListener("hashchange", handleHashChange);
 
-  loadAllData().then(function () {
+  loadAllData().then(async function () {
     handleHashChange();
     // Bug (Demo 3): loadNoteAsync returns a Promise but it is logged directly
     // without .then() or await, so the console shows the Promise object itself.
-    var firstNote = loadNoteAsync("E01");
+    var firstNote = await loadNoteAsync("E01");
     console.log("First note preview:", firstNote);
   });
 }

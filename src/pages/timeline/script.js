@@ -108,10 +108,10 @@ function openEvidenceModal(evidenceId) {
   // Bug (Demo 4): modalCloseListenerCount increments every time the modal is
   // opened but the listener added below is NEVER removed. Repeated opens stack
   // listeners, which is only visible in the console log below.
-  state.modalCloseListenerCount++;
+  state.modalCloseListenerCount = 1;
   console.log("modal opened, active close listeners:", state.modalCloseListenerCount);
 
-  modal.addEventListener("click", function (e) {
+  modal.onclick = function (e) {
     if (e.target.classList.contains("modal-close-btn") || e.target.classList.contains("modal-backdrop")) {
       modal.innerHTML = "";
     }
@@ -125,7 +125,7 @@ function openEvidenceModal(evidenceId) {
         });
       }, 50);
     }
-  });
+  };
 }
 
 export function init() {

@@ -65,21 +65,13 @@ export function getFilteredEvidence() {
   const sortValue = sortEl ? sortEl.value : "date-desc";
 
   if (sortValue === "title-asc") {
-    results.sort(function (a, b) {
-      return a.title.localeCompare(b.title);
-    });
+    results.sort((a, b) => a.title.localeCompare(b.title));
   } else if (sortValue === "title-desc") {
-    results.sort(function (a, b) {
-      return b.title.localeCompare(a.title);
-    });
+    results.sort((a, b) => b.title.localeCompare(a.title));
   } else if (sortValue === "date-asc") {
-    results.sort(function (a, b) {
-      return new Date(a.timestamp) - new Date(b.timestamp);
-    });
+    results.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   } else {
-    results.sort(function (a, b) {
-      return new Date(b.timestamp) - new Date(a.timestamp);
-    });
+    results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }
 
   state.filteredEvidence = results;
@@ -272,12 +264,12 @@ function renderEvidenceDetail(ev) {
   document.getElementById("closeDetailBtn").addEventListener("click", closeEvidenceDetail);
   document.getElementById("saveNoteBtn").addEventListener("click", saveCurrentNote);
 
-  document.getElementById("detailStatusSelect").addEventListener("change", function (e) {
+  document.getElementById("detailStatusSelect").addEventListener("change", (e) => {
     ev.status = e.target.value;
     renderEvidenceDetail(ev);
     renderEvidenceList();
   });
-  document.getElementById("detailRelevanceSelect").addEventListener("change", function (e) {
+  document.getElementById("detailRelevanceSelect").addEventListener("change", (e) => {
     ev.relevance = e.target.value;
     renderEvidenceDetail(ev);
     renderEvidenceList();

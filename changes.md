@@ -110,32 +110,34 @@ i converted it to an async function using a standard try / catch / finally block
 - is async/await faster?: no, under the hood it uses the same Promise microtask queue. it does not make network requests faster, it is purely syntactic sugar for readability and code organization.
 - removing an await: if you remove `await` from `const caseRes = fetch(...)`, then `caseRes` is a Promise object instead of the Response. calling `caseRes.json()` immediately crashes with an error because `.json()` doesn't exist directly on a Promise wrapper. this is the exact same type of bug we saw in Demo 4 with `loadNoteAsync`.
 
+***DEMO 10***
 
+in this demo i refactored functions to modern arrow functions:
 
+1. functions converted to arrow functions:
+- statCardHTML in dashboard/script.js:
+  before: function statCardHTML(value, label) { return ... }
+  after: const statCardHTML = (value, label) => ...
+  it's a pure helper that just formats a template, so making it an arrow function makes it clean and short.
+- array .sort() callbacks in evidence/script.js:
+  before: results.sort(function(a, b) { return ... })
+  after: results.sort((a, b) => a.title.localeCompare(b.title))
+  arrow functions are ideal for array callbacks because you don't need the function keyword or return statement for single expressions.
+- event listeners in evidence/script.js:
+  converted the change callbacks for detailStatusSelect and detailRelevanceSelect to `(e) => { ... }`.
 
+2. function i deliberately did NOT convert:
+any function where we would need dynamic `this` bound to the DOM element (for example, if an event listener uses `this.classList.toggle(...)`).
+arrow functions do NOT have their own `this` binding — they inherit `this` lexically from their surrounding scope. so if a function relies on `this` pointing to the clicked button or input, converting it to an arrow function breaks it.
+also, top-level function declarations (`function init() {}`) are hoisted to the top of the file. if you convert them to `const init = () => {}`, they are not hoisted, so calling them before they appear in the file causes a ReferenceError.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+3. answers to theory questions:
+- arrow functions vs regular functions with `this`: regular functions bind `this` based on how they are called (e.g. the element receiving an event). arrow functions do not have their own `this`, they capture `this` from the enclosing lexical scope. that makes arrow functions dangerous when you expect `this` to be the object or DOM element, but great as callbacks (like inside setTimeout or Promise chains) where you don't want `this` to accidentally change.
+- no `arguments` or `new`: arrow functions cannot be used as constructors with `new`, and don't have the magic `arguments` object (you have to use rest parameters `(...args)` instead).
+- hoisting: function declarations can be called anywhere in the file (even above their definition). `const` arrow functions cannot be called before the line where they are defined (Temporal Dead Zone).
+- rule for the team on when to use which:
+  - use **arrow functions** for short callbacks (like `.map()`, `.filter()`, `.sort()`, inline event listeners) and small pure helpers.
+  - use **standard function declarations** (`function foo() {}`) for top-level component functions, exported module functions, or whenever you need hoisting or a dedicated `this`.
 
 
 

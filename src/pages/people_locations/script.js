@@ -2,10 +2,10 @@ import { state } from '../../state.js';
 
 export function switchPeopleTab(tab) {
   state.currentPeopleTab = tab;
-  var peoplePanel = document.getElementById("peoplePanel");
-  var locationsPanel = document.getElementById("locationsPanel");
-  var peopleTabBtn = document.getElementById("tabPeopleBtn");
-  var locationsTabBtn = document.getElementById("tabLocationsBtn");
+  const peoplePanel = document.getElementById("peoplePanel");
+  const locationsPanel = document.getElementById("locationsPanel");
+  const peopleTabBtn = document.getElementById("tabPeopleBtn");
+  const locationsTabBtn = document.getElementById("tabLocationsBtn");
 
   if (tab === "people") {
     peoplePanel.classList.remove("hidden");
@@ -21,9 +21,9 @@ export function switchPeopleTab(tab) {
 }
 
 function countEvidenceForPerson(person) {
-  var count = 0;
-  for (var i = 0; i < state.allEvidence.length; i++) {
-    var ev = state.allEvidence[i];
+  let count = 0;
+  for (let i = 0; i < state.allEvidence.length; i++) {
+    const ev = state.allEvidence[i];
     if (ev.personIds && (ev.personIds.indexOf(person.id) !== -1 || ev.personIds.indexOf(person.name) !== -1)) {
       count++;
     }
@@ -32,13 +32,13 @@ function countEvidenceForPerson(person) {
 }
 
 export function renderPeople() {
-  var container = document.getElementById("peoplePanel");
+  const container = document.getElementById("peoplePanel");
   if (!container) return;
-  var html = "";
-  for (var i = 0; i < state.allPeople.length; i++) {
-    var person = state.allPeople[i];
-    var avatarSrc = "../" + person.avatar.replace(/\.png$/i, ".webp"); // Adjust the path to the avatar image
-    var count = countEvidenceForPerson(person);
+  let html = "";
+  for (let i = 0; i < state.allPeople.length; i++) {
+    const person = state.allPeople[i];
+    const avatarSrc = "../" + person.avatar.replace(/\.png$/i, ".webp"); // Adjust the path to the avatar image
+    const count = countEvidenceForPerson(person);
 
     html += '<div class="person-card">';
     html += '<div class="person-card-header">';
@@ -47,7 +47,7 @@ export function renderPeople() {
     html += "</div>";
     html += "<p><strong>Speciality:</strong> " + person.speciality + "</p>";
     html += "<ul>";
-    for (var r = 0; r < person.responsibilities.length; r++) {
+    for (let r = 0; r < person.responsibilities.length; r++) {
       html += "<li>" + person.responsibilities[r] + "</li>";
     }
     html += "</ul>";
@@ -58,13 +58,13 @@ export function renderPeople() {
   }
   container.innerHTML = html;
 
-  var links = container.querySelectorAll(".evidence-count-link");
-  for (var l = 0; l < links.length; l++) {
+  const links = container.querySelectorAll(".evidence-count-link");
+  for (let l = 0; l < links.length; l++) {
     links[l].addEventListener("click", function (e) {
-      var personId = e.target.getAttribute("data-person-id");
+      const personId = e.target.getAttribute("data-person-id");
       window.location.hash = "evidence";
       setTimeout(function () {
-        var filterEl = document.getElementById("filterPerson");
+        const filterEl = document.getElementById("filterPerson");
         if (filterEl) {
           filterEl.value = personId;
           filterEl.dispatchEvent(new Event("change"));
@@ -75,17 +75,17 @@ export function renderPeople() {
 }
 
 export function renderLocations() {
-  var container = document.getElementById("locationsPanel");
+  const container = document.getElementById("locationsPanel");
   if (!container) return;
 
-  var html = "";
-  for (var i = 0; i < state.allLocations.length; i++) {
-    var loc = state.allLocations[i];
+  let html = "";
+  for (let i = 0; i < state.allLocations.length; i++) {
+    const loc = state.allLocations[i];
     html += '<div class="location-card">';
     html += "<h3>" + loc.id + " &mdash; " + loc.name + "</h3>";
     html += "<p>" + loc.description + "</p>";
     html += "<p><strong>Contains:</strong></p><ul>";
-    for (var c = 0; c < loc.contains.length; c++) {
+    for (let c = 0; c < loc.contains.length; c++) {
       html += "<li>" + loc.contains[c] + "</li>";
     }
     html += "</ul></div>";

@@ -77,48 +77,36 @@ function loadEvidenceData() {
     });
 }
 
-function loadTimelineData() {
-  return fetch("../data/timeline.json")
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      state.allTimeline = data;
-    })
-    .catch(function (err) {
-      console.log("timeline load error", err);
-    })
-    .finally(function () {
-      hideLoadingStep();
-    });
+async function loadTimelineData() {
+  try {
+    const res = await fetch("../data/timeline.json");
+    state.allTimeline = await res.json();
+  } catch (err) {
+    console.log("timeline load error", err);
+  } finally {
+    hideLoadingStep();
+  }
 }
 
-function loadCorePeopleAndLocations() {
-  return fetch("../data/case.json").then(function (caseRes) {
-    return caseRes.json().then(function (caseJson) {
-      state.caseData = caseJson;
+async function loadCorePeopleAndLocations() {
+  const caseRes = await fetch("../data/case.json");
+  state.caseData = await caseRes.json();
 
-      return fetch("../data/people.json").then(function (peopleRes) {
-        return peopleRes.json().then(function (peopleJson) {
-          state.allPeople = peopleJson;
+  const peopleRes = await fetch("../data/people.json");
+  state.allPeople = await peopleRes.json();
 
-          return fetch("../data/locations.json").then(function (locationsRes) {
-            return locationsRes.json().then(function (locationsJson) {
-              state.allLocations = locationsJson;
-              hideLoadingStep();
-            });
-          });
-        });
-      });
-    });
-  });
+  const locationsRes = await fetch("../data/locations.json");
+  state.allLocations = await locationsRes.json();
+
+  hideLoadingStep();
 }
 
-function loadAllData() {
+async function loadAllData() {
   showLoadingOverlay("Loading case file…");
   state.loadingStepsRemaining = 2;
-  return loadCorePeopleAndLocations().then(function () {
-    loadEvidenceData();
-    loadTimelineData();
-  });
+  await loadCorePeopleAndLocations();
+  loadEvidenceData();
+  await loadTimelineData();
 }
 
 // ---------------------------------------------------------------------
@@ -176,16 +164,14 @@ async function initApp() {
   loadBookmarksFromStorage();
   loadNotesFromStorage();
 
-  // Bug (Demo 8): classic var-in-loop closure — the anonymous function captures
-  // the variable `i`, not its value, so by the time any click fires, `i` equals
-  // navButtons.length and navButtons[i] is undefined.
-  var navButtons = document.querySelectorAll(".nav-btn");
-  for (var i = 0; i < navButtons.length; i++) {
-    navButtons[i].addEventListener("click", function () {
-      var targetView = navButtons[i].getAttribute("data-view");
+  // Fixed code smell: use forEach so each callback has its own button reference instead of broken var i
+  const navButtons = document.querySelectorAll(".nav-btn");
+  navButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetView = btn.getAttribute("data-view");
       console.log("nav clicked:", targetView);
     });
-  }
+  });
 
   window.addEventListener("hashchange", handleHashChange);
 
@@ -193,7 +179,7 @@ async function initApp() {
     handleHashChange();
     // Bug (Demo 3): loadNoteAsync returns a Promise but it is logged directly
     // without .then() or await, so the console shows the Promise object itself.
-    var firstNote = await loadNoteAsync("E01");
+    const firstNote = await loadNoteAsync("E01");
     console.log("First note preview:", firstNote);
   });
 }

@@ -68,6 +68,44 @@ Then it calls renderEvidenceList().
 But the very first thing renderEvidenceList() does is call getFilteredEvidence(), which re-filters and resets state.filteredEvidence from scratch without applying the sort The sort is completely wiped out before the HTML is generated.
 so i just moved the sorting inside the getFilteredEvidence function which it just fixed the demo 2 :). 
 
+***DEMO 6***
+for this demo i watched a tutorial on the browser debugger and how to use breakpoints, stepping, and call stacks live in devtools.
+here are the answers to the questions:
+- difference between "Step over" and "Step into":
+  "Step over" (F10) moves to the next line in the current function without entering functions called on that line.
+  "Step into" (F11) jumps inside the function being called.
+  example where using the wrong one wastes time: in `getFilteredEvidence`, if you are looping through evidence and you accidentally hit "Step into" on `evidenceMentionsPerson(...)` or `formatDate(...)`, you get dragged into helper functions and native library internals for 10 steps instead of just moving to the next item in your loop.
+- what is the call stack and how it helps:
+  the call stack shows the active chain of function calls leading up to where execution is currently paused (who called what).
+  it helps you trace backwards: if a function runs with unexpected arguments or at the wrong time, looking at the call stack immediately shows the exact caller and the scope/variables of every parent function on the stack.
+- conditional breakpoints vs hitting resume:
+  a conditional breakpoint only pauses when a specific expression is true (like `item.id === "E05"`).
+  if you have an array of 50 items and only care about item #40, a regular breakpoint forces you to hit resume 39 times manually, which is slow and easy to overshoot. a conditional breakpoint skips straight to the one you care about.
+- breakpoint in DevTools UI vs `debugger;` statement:
+  a breakpoint in DevTools is temporary, doesn't modify source files, and can be toggled on/off without restarting.
+  `debugger;` is hardcoded into your `.js` source file. it's useful if you have dynamic code or want to make sure every teammate hits the pause at that exact line, but you must remember to delete it before committing so it doesn't trigger in production.
+- when console.log was not enough, but the debugger was:
+  with `console.log`, objects are evaluated asynchronously in the console, or you only get snapshots of values at one moment in time. with the debugger, you can pause time, inspect closures, view local and module scope simultaneously, and even change variable values live in the Scope panel to test a fix before writing any code.
+***DEMO 7***
+for demo 7, i explored the main DevTools tabs: Console, Network, Application, and Elements.
+here are the answers to the questions:
+- Console log-level filters and "Preserve log":
+  the log-level dropdown allows filtering messages by Verbose, Info, Warnings, and Errors.
+  "Preserve log" keeps the console history across page reloads and navigations. normally, when a page reloads, the console clears immediately. with "Preserve log" checked, you can debug issues that happen right before or during an unload/reload.
+- Network tab, status codes, payload, and throttling:
+  in the Network tab, inspecting a request like `evidence.json` shows:
+  - Status code (e.g. 200 OK or 304 Not Modified).
+  - Response body (the parsed JSON data).
+  - Timing breakdown (DNS lookup, TCP handshake, TTFB - Time to First Byte, and download time).
+  throttling to "Slow 3G" simulates a slow mobile connection. on our app, loading the unoptimized PNG images took over 12 MB and took seconds to pop in, which shows why converting them to WebP (saving 93% bandwidth) is so important.
+- Application / Storage tab (localStorage) and invalid JSON:
+  localStorage stores simple key-value string pairs.
+  in DevTools, you can view keys like `remotion_bookmarks` or `remotion_notes`, edit them directly, or delete them.
+  if you replace a value with invalid JSON (e.g. just raw text like `abc` instead of valid JSON string/array), when the app reloads, `JSON.parse()` throws a `SyntaxError`. our code in `loadBookmarksFromStorage()` wraps this in a `try / catch` block, so it gracefully catches the error, resets the storage, and prevents the app from crashing.
+- Elements tab vs code that generated it:
+  the Elements tab shows the live DOM tree as currently rendered by the browser, including dynamic classes like `.active` and injected card HTML.
+  inspecting an evidence card in the DOM directly connects back to `renderEvidenceCardHTML(ev)` in `evidence/script.js`, showing how JavaScript template strings are turned into real DOM nodes.
+
 
 ***DEMO 8***
 

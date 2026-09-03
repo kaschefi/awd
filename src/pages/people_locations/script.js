@@ -36,8 +36,8 @@ export function renderPeople() {
   if (!container) return;
   var html = "";
   for (var i = 0; i < state.allPeople.length; i++) {
-    var person = state.allPeople[i]; 
-    var avatarSrc = "../" + person.avatar; // Adjust the path to the avatar image
+    var person = state.allPeople[i];
+    var avatarSrc = "../" + person.avatar.replace(/\.png$/i, ".webp"); // Adjust the path to the avatar image
     var count = countEvidenceForPerson(person);
 
     html += '<div class="person-card">';

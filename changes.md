@@ -327,3 +327,46 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
    - **Under the hood:** `pnpm lint` reads `package.json`, finds the `"lint"` script (`eslint .`), temporarily prepends `./node_modules/.bin` to the environment's `PATH`, and executes the command in a subshell.
    - **Where it looks:** It looks in the local project's `./node_modules/.bin/eslint`.
    - **If only installed globally:** If ESLint were only installed globally, `pnpm lint` might fall back to the system PATH on your machine, but **it would fail in CI or on teammates' computers** who don't have it installed globally. Furthermore, different machines might have different global versions with conflicting plugins. Installing it locally as a `devDependency` guarantees that every developer and CI runner executes the exact same version and configuration.
+
+***DEMO 5***
+
+**TypeScript Setup & Configuration:**
+- Installed `typescript` and configured [tsconfig.json](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/tsconfig.json) with deliberate strictness and bundler settings:
+  - `"strict": true`: Enables all strict type-checking family options.
+  - `"noImplicitAny": true`: Forbids undeclared fallback to `any`.
+  - `"strictNullChecks": true`: Treats `null` and `undefined` as separate types to eliminate runtime "Cannot read properties of undefined".
+  - `"noEmit": true`: Disables emitting JS files from `tsc` because Vite handles building/bundling.
+  - `"allowJs": true` & `"checkJs": false`: Supports gradual migration from JavaScript to TypeScript without breaking existing JS modules.
+  - Installed `typescript-eslint` so ESLint parses and lints TypeScript syntax without parsing errors.
+
+**Modules Converted (Zero `any`):**
+- **`src/formatters.ts`**: Pure functions for formatting dates and CSS badge classes (`formatDate`, `getStatusBadgeClass`, `getRelevanceBadgeClass`, `certaintyBadgeClass`). Strongly typed with union types and defensive null checks.
+- **`src/lookup.ts`**: Search and filter utilities (`findEvidenceById`, `findPersonById`, `findLocationById`, `evidenceMentionsPerson`). Defines explicit interfaces (`EvidenceItem`, `IdentifiedEntity`).
+- **`src/utils.ts`**: Re-exports all helpers so existing imports across components continue working without interruption.
+
+**Wired Tooling & Build Scripts:**
+- Updated `package.json`:
+  - `"build": "tsc --noEmit && vite build"`: Enforces static type checking before running Vite production bundling. Any type error halts the build and fails CI.
+  - `"typecheck": "tsc --noEmit"`: Dedicated fast script to run type checks on demand without building.
+
+**Demo 5 Questions & Answers:**
+
+1. **What does the `strict` option in `tsconfig.json` actually turn on? Name at least two individual checks bundled under it, and say whether you kept it on and why.**
+   - `strict: true` is a master setting that turns on:
+     - `noImplicitAny`: Raises errors whenever a variable or parameter lacks an explicit type and would otherwise default to `any`.
+     - `strictNullChecks`: Makes types non-nullable by default; `null` and `undefined` must be handled explicitly (e.g. `string | null`).
+     - `strictFunctionTypes`, `strictBindCallApply`, `noImplicitThis`, `alwaysStrict`, `useUnknownInCatchVariables`.
+   - **We kept `strict: true` on.**
+   - **Why:** The primary motivation for adopting TypeScript is eliminating runtime bugs. Keeping `strict` on prevents implicit `any` leaks and guarantees that `null` or `undefined` values are checked at compile time before property access, preventing the most common class of web runtime crashes.
+
+2. **What is the difference between a compile-time type error and the runtime bugs you fixed in Exercise 1? Could TypeScript alone have caught any of those specific bugs? Why or why not?**
+   - **Compile-time type error:** Found statically before execution by the compiler (`tsc`). Catches wrong argument types, missing object properties, or type mismatches.
+   - **Runtime bug:** Occurs while the code is running in the browser due to flawed logic, unexpected state transitions, or unhandled asynchronous flows.
+   - **Could TypeScript have caught Exercise 1 bugs?**
+     - **Demo 4 (Missing `await` on `loadNoteAsync`): YES.** `loadNoteAsync` returns a `Promise<string>`. If you treat the result as a string or pass it to a string function, TypeScript fails compilation: `Type 'Promise<string>' is not assignable to type 'string'`.
+     - **Demo 2 (Reference vs. Copy mutation with `.sort()`): NO.** Assigning an array variable and calling `.sort()` on it is 100% valid TypeScript (`EvidenceItem[]`). The compiler cannot know you intended an immutable copy rather than an in-place mutation.
+     - **Demo 3 (Forgotten flag reset `evidenceViewLoading = false`): NO.** Forgetting to assign a boolean flag in a `.then()` callback is a pure omission of business logic; all types are sound.
+
+3. **What does `any` do to TypeScript's checking for a value, and why did you avoid it in this first pass even though it would have been faster to just silence the errors with it?**
+   - **What `any` does:** Completely turns off type checking for that value. TypeScript blindly permits any property access, function call, or reassignment on an `any` variable, effectively reverting that portion of the codebase back to untyped JavaScript. It also spreads contagiously ("viral `any`") to any downstream variable that consumes it.
+   - **Why we avoided it:** Using `any` defeats the purpose of migrating to TypeScript. Avoiding `any` forced us to define explicit domain shapes (`IdentifiedEntity`, `EvidenceItem`, string literal unions) and properly handle optional/null values, providing true compile-time safety and reliable editor auto-completion.

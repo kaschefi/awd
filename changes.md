@@ -370,3 +370,87 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
 3. **What does `any` do to TypeScript's checking for a value, and why did you avoid it in this first pass even though it would have been faster to just silence the errors with it?**
    - **What `any` does:** Completely turns off type checking for that value. TypeScript blindly permits any property access, function call, or reassignment on an `any` variable, effectively reverting that portion of the codebase back to untyped JavaScript. It also spreads contagiously ("viral `any`") to any downstream variable that consumes it.
    - **Why we avoided it:** Using `any` defeats the purpose of migrating to TypeScript. Avoiding `any` forced us to define explicit domain shapes (`IdentifiedEntity`, `EvidenceItem`, string literal unions) and properly handle optional/null values, providing true compile-time safety and reliable editor auto-completion.
+
+***DEMO 6***
+
+**Domain Data Modeling (`src/types.ts`):**
+- Defined complete, strict interfaces for all investigation entities matching `data/*.json`:
+  - `CaseData`: Strongly types the case overview metadata (`caseId`, `title`, `status`, `summary`, etc.).
+  - `Person`: Represents suspects/witnesses (`id`, `name`, `role`, `speciality`, `responsibilities`, `statement`, `background`, `avatar`).
+  - `Location`: Physical sites (`id`, `name`, `description`, `contains`).
+  - `TimelineEvent`: Chronological events (`id`, `time`, `title`, `description`, `certainty`, `personIds`, `locationIds`, `evidenceIds`).
+  - `Evidence`: Investigation evidence records (`id`, `type`, `title`, `timestamp`, `summary`, `content`, `personIds`, `locationIds`, `tags`, `status`, `relevance`).
+  - String literal union types:
+    - `TimelineCertainty = 'confirmed' | 'contradictory' | 'reported'`
+    - `EvidenceStatus = 'unreviewed' | 'reviewed' | 'flagged'`
+    - `EvidenceRelevance = 'unknown' | 'relevant' | 'irrelevant'`
+  - `HypothesisDraft` & `AppState`: Global app state container typing state properties, filter objects, and view tracking.
+
+**Type-Safe Data Loading (`src/dataLoader.ts`):**
+- Created dedicated loader module replacing raw, untyped `fetch().then(res => res.json())` with strongly-typed async functions returning explicit promises:
+  - `fetchCaseData(): Promise<CaseData>`
+  - `fetchPeopleData(): Promise<Person[]>`
+  - `fetchLocationsData(): Promise<Location[]>`
+  - `fetchTimelineData(): Promise<TimelineEvent[]>`
+  - `fetchEvidenceData(): Promise<Evidence[]>`
+- Wired these functions into `src/app.js` (`loadCorePeopleAndLocations`, `loadEvidenceData`, `loadTimelineData`), guaranteeing type safety at the network ingestion boundary.
+
+**Ambiguous / Inconsistent Field Case Study:**
+- **The Ambiguous Field:** `personIds` in `public/data/evidence.json`.
+- **The Inconsistency:**
+  - In most evidence records (e.g., `E01`), `personIds` holds normalized kebab-case IDs: `["patch-vector"]`.
+  - In record `E04`, `personIds` holds the human-readable display name instead: `["Nova Byte"]`.
+  - Furthermore, `evidence.type` has inconsistent casing across items (`"test-report"` in `E01` vs `"Test-Report"` in `E03`).
+- **How JavaScript got away with it:**
+  - Plain JavaScript uses duck typing and performs no compile-time structure checks.
+  - The runtime code in Exercise 1 worked around this silently by checking both ID and name dynamically:
+    ```js
+    ev.personIds.indexOf(person.id) !== -1 || ev.personIds.indexOf(person.name) !== -1
+    ```
+    Because JavaScript treats all array elements as loose strings, it never forced the developer to decide whether `personIds` was an array of foreign keys (`PersonId[]`) or an array of arbitrary display names.
+- **What TypeScript forced us to decide:**
+  - If we had modeled `personIds` strictly as `type PersonId = 'patch-vector' | 'dr-elena-rostova' | ...`, the actual runtime JSON file would violate the contract because `"Nova Byte"` is not a valid ID.
+  - We had to explicitly acknowledge this domain anomaly:
+    1. We typed `personIds: string[]` on `Evidence` and documented the anomaly in `types.ts`.
+    2. We preserved the dual-matching lookup helper in `src/lookup.ts` (`evidenceMentionsPerson`) with strict typing: `ev: Evidence | null | undefined, person: Person`.
+    3. In a production enterprise app, TypeScript would force an architectural decision: either build a runtime data-cleansing transformation layer at fetch time (normalizing `"Nova Byte"` -> `"patch-vector"`), or fix the backend/database JSON generator so foreign keys are always consistent IDs.
+
+---
+
+**Demo 6 Questions & Answers:**
+
+1. **Walk through the ambiguous field you picked: how did the JavaScript version get away without deciding on one shape, and what did TypeScript force you to commit to?**
+   - **The Field:** `personIds` on `Evidence` items in `public/data/evidence.json`.
+   - **How JS got away with it:** JavaScript has dynamic typing and no schema enforcement. An array can hold any arbitrary strings at runtime. The original code accommodated the inconsistency with a defensive boolean check (`indexOf(person.id) !== -1 || indexOf(person.name) !== -1`). Because JS doesn't validate data against a compile-time schema, the sloppy data model went unnoticed until search/filter anomalies occurred.
+   - **What TypeScript forced us to commit to:** TypeScript demands an unambiguous type contract. We could not declare `personIds: EntityId[]` without the realization that the JSON contains non-ID display names. TypeScript forced us to choose: do we enforce a strict identifier union and fail/reject display names, or do we model it as `string[]` and handle entity resolution explicitly? We committed to modeling `personIds: string[]`, explicitly documenting the data inconsistency in `types.ts`, and typing the lookup function to safely resolve both IDs and names.
+
+2. **Is there a data-shape problem in this app that TypeScript's static types *can't* catch on their own, because the actual bad data would only show up at runtime from a JSON file, not from your code? What would you need in addition to types to catch that?**
+   - **What TypeScript can't catch:** TypeScript only checks code at **compile time**. Once compiled to JavaScript, all type annotations are **completely erased**. When `fetch('/data/evidence.json')` executes in the user's browser, TypeScript cannot prevent or detect if:
+     - The JSON file is missing required fields (e.g. `evidence.id` is omitted).
+     - A field has the wrong type (e.g., `timestamp` is a number instead of a string, or `personIds` is `null` instead of an array).
+     - New unexpected values break union types (e.g., `status: "archived"` instead of `'unreviewed' | 'reviewed' | 'flagged'`).
+   - If bad data arrives from the network or a JSON file, TypeScript's static cast `(await res.json()) as Evidence[]` silently succeeds at runtime, and the app crashes later with `TypeError: Cannot read properties of undefined`.
+   - **What is needed in addition to types:** A **runtime schema validation library** (such as **Zod**, **Valibot**, or **Yup**) or custom **TypeScript Type Guards** (`function isEvidence(obj: unknown): obj is Evidence`). With Zod, for example:
+     ```ts
+     const EvidenceSchema = z.object({
+       id: z.string(),
+       title: z.string(),
+       status: z.enum(['unreviewed', 'reviewed', 'flagged']),
+       personIds: z.array(z.string()),
+     });
+     const evidenceList = EvidenceSchema.array().parse(await res.json());
+     ```
+     This validates the actual incoming payload at runtime at the application boundary, throwing a clear error immediately if the JSON shape is malformed.
+
+3. **What's the difference between an `interface` and a `type` alias for an object shape in TypeScript? Which did you use for your domain models, and does it actually matter here?**
+   - **Differences between `interface` and `type`:**
+     - **Declaration Merging:** An `interface` can be defined multiple times in the same scope, and TypeScript automatically merges the definitions into one (useful for extending third-party library types or Window/DOM definitions). A `type` alias cannot be redeclared; duplicate `type` names result in a compile error.
+     - **Extensibility & Inheritance:** Interfaces extend via `interface A extends B { ... }`, which creates clean inheritance hierarchies and better compiler caching. Type aliases combine shapes via intersection: `type A = B & { ... }`.
+     - **Supported Constructs:** `type` aliases can represent primitives, union types, intersection types, and tuples (e.g. `type Status = 'reviewed' | 'flagged'`, `type ID = string | number`). An `interface` can only describe object shapes or function signatures.
+   - **Which did we use for domain models:**
+     - We used **`interface`** for domain entity models (`CaseData`, `Person`, `Location`, `TimelineEvent`, `Evidence`, `AppState`).
+     - We used **`type`** for union types and literal enums (`TimelineCertainty`, `EvidenceStatus`, `EvidenceRelevance`).
+   - **Does it actually matter here?**
+     - For the core object shapes themselves (`Person`, `Location`, etc.), **it does not practically matter** for static analysis: both compile away completely to 0 bytes of JavaScript, and both provide identical property type checking and editor autocompletion.
+     - However, separating them follows TypeScript idiomatic best practices: use `interface` for extensible object contracts and data records, and use `type` for unions and primitives.
+

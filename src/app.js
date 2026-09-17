@@ -52,6 +52,14 @@ function hideLoadingStep() {
   }
 }
 
+import {
+  fetchCaseData,
+  fetchEvidenceData,
+  fetchLocationsData,
+  fetchPeopleData,
+  fetchTimelineData,
+} from './dataLoader.js';
+
 // ---------------------------------------------------------------------
 // DATA FETCHING (BOOTSTRAP)
 // ---------------------------------------------------------------------
@@ -60,10 +68,7 @@ function hideLoadingStep() {
 // Note: intentionally never calls hideLoadingStep() — the counter
 // only ticks down via loadCorePeopleAndLocations and loadTimelineData.
 function loadEvidenceData() {
-  fetch('/data/evidence.json')
-    .then(function (res) {
-      return res.json();
-    })
+  fetchEvidenceData()
     .then(function (data) {
       state.allEvidence = data;
       applyStoredBookmarkFlags();
@@ -81,8 +86,7 @@ function loadEvidenceData() {
 
 async function loadTimelineData() {
   try {
-    const res = await fetch('/data/timeline.json');
-    state.allTimeline = await res.json();
+    state.allTimeline = await fetchTimelineData();
   } catch (err) {
     console.log('timeline load error', err);
   } finally {
@@ -91,14 +95,9 @@ async function loadTimelineData() {
 }
 
 async function loadCorePeopleAndLocations() {
-  const caseRes = await fetch('/data/case.json');
-  state.caseData = await caseRes.json();
-
-  const peopleRes = await fetch('/data/people.json');
-  state.allPeople = await peopleRes.json();
-
-  const locationsRes = await fetch('/data/locations.json');
-  state.allLocations = await locationsRes.json();
+  state.caseData = await fetchCaseData();
+  state.allPeople = await fetchPeopleData();
+  state.allLocations = await fetchLocationsData();
 
   hideLoadingStep();
 }

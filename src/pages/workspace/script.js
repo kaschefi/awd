@@ -116,7 +116,7 @@ export function saveHypothesis() {
 export function loadHypothesisFromStorage() {
   const raw = localStorage.getItem(STORAGE_KEY_HYPOTHESIS);
   if (!raw) return;
-
+  // we are not using a try catch block here so a corrupted hypothesis will break the app
   const draft = JSON.parse(raw);
 
   document.getElementById("hypSuspect").value = draft.suspectId || "";

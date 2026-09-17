@@ -244,6 +244,9 @@ A guided tour, so you know where things live before you need them.
 
 ---
 
+"In the original app.js, the dashboard was already in the DOM and loadCorePeopleAndLocations() called renderDashboard() before evidence.json or timeline.json had finished downloading, causing intermediate 0-value states. In our modular refactor, we converted the app into a proper SPA router where views are only mounted once all bootstrap data is ready. That completely eliminated the premature rendering bug."
+
+
 ## Demo 8 — Clean coding: globals, `var`/`let`/`const`, code smells
 
 **Tasks**

@@ -105,7 +105,7 @@ async function loadAllData() {
   showLoadingOverlay("Loading case file…");
   state.loadingStepsRemaining = 2;
   await loadCorePeopleAndLocations();
-  loadEvidenceData();
+  await loadEvidenceData();
   await loadTimelineData();
 }
 
@@ -163,7 +163,8 @@ async function handleHashChange() {
 async function initApp() {
   loadBookmarksFromStorage();
   loadNotesFromStorage();
-
+  console.warn("that's a warning");
+  console.error("this is an error");
   // Fixed code smell: use forEach so each callback has its own button reference instead of broken var i
   const navButtons = document.querySelectorAll(".nav-btn");
   navButtons.forEach(btn => {
@@ -175,6 +176,7 @@ async function initApp() {
 
   window.addEventListener("hashchange", handleHashChange);
 
+  // only show dashboard after all data is loaded
   loadAllData().then(async function () {
     handleHashChange();
     // Bug (Demo 3): loadNoteAsync returns a Promise but it is logged directly

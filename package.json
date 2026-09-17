@@ -1,0 +1,21 @@
+{
+  "name": "remotion-investigation-portal",
+  "version": "1.0.0",
+  "description": "Browser-based investigation platform for Project ReMotion incident analysis",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "remotion",
+    "investigation-portal",
+    "robotics"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@12.4.2",
+  "dependencies": {
+    "clsx": "^2.1.1"
+  }
+}

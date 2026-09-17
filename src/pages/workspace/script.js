@@ -45,7 +45,7 @@ export function renderBookmarksList() {
       const id = e.target.getAttribute("data-open-evidence");
       window.location.hash = "evidence";
       setTimeout(function () {
-        import('../evidence/index.js').then(module => {
+        import('../evidence/script.js').then(module => {
           module.openEvidenceDetail(id);
         });
       }, 50);

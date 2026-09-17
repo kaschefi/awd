@@ -62,12 +62,12 @@ ticked. The table above is just a fast overview, tick the boxes inside each demo
 
 **Questions** (depend on the tasks above)
 
-- [ ] What problem does a package manager actually solve that "download the library and put it in a folder yourself" doesn't? Be specific.
-- [ ] What's the difference between `dependencies` and `devDependencies` in `package.json`? Which
+- [x] What problem does a package manager actually solve that "download the library and put it in a folder yourself" doesn't? Be specific.
+- [x] What's the difference between `dependencies` and `devDependencies` in `package.json`? Which
       category will Vite, your linter/formatter, and TypeScript belong to, and why?
-- [ ] What is a lockfile for, and what could go wrong for your teammates (or CI) if it weren't
+- [x] What is a lockfile for, and what could go wrong for your teammates (or CI) if it weren't
       committed to the repo?
-- [ ] If you chose pnpm: what does it do differently from npm regarding how `node_modules` is laid out and how disk space/install time is shared across projects? If you chose npm: what would you gain or lose by switching to pnpm on a larger project?
+- [x] If you chose pnpm: what does it do differently from npm regarding how `node_modules` is laid out and how disk space/install time is shared across projects? If you chose npm: what would you gain or lose by switching to pnpm on a larger project?
 
 ---
 
@@ -75,15 +75,15 @@ ticked. The table above is just a fast overview, tick the boxes inside each demo
 
 **Tasks**
 
-- [ ] Install Vite and configure it for this project (restructure files if needed so Vite can find `index.html`/your modules/the `data/` and `assets/` folders correctly).
-- [ ] Get `vite`'s dev server running the app with the same functionality it had before. Verify every view still works, not just that the page loads.
-- [ ] Trigger Hot Module Replacement at least once: change something in the running app's source and observe the update happen without a full page reload.
+- [x] Install Vite and configure it for this project (restructure files if needed so Vite can find `index.html`/your modules/the `data/` and `assets/` folders correctly).
+- [x] Get `vite`'s dev server running the app with the same functionality it had before. Verify every view still works, not just that the page loads.
+- [x] Trigger Hot Module Replacement at least once: change something in the running app's source and observe the update happen without a full page reload.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What is the difference between how you used to run this app (a plain static file server) and running it through Vite's dev server? Name at least one thing Vite's dev server does that a plain static server doesn't.
-- [ ] What is Hot Module Replacement, and what specifically did you observe happen (and *not* happen, e.g. to app state) when you triggered it?
-- [ ] Why does an app already split into ES modules (Exercise 1) integrate naturally with a tool like Vite, compared to the original single-`<script>` version?
+- [x] What is the difference between how you used to run this app (a plain static file server) and running it through Vite's dev server? Name at least one thing Vite's dev server does that a plain static server doesn't.
+- [x] What is Hot Module Replacement, and what specifically did you observe happen (and *not* happen, e.g. to app state) when you triggered it?
+- [x] Why does an app already split into ES modules (Exercise 1) integrate naturally with a tool like Vite, compared to the original single-`<script>` version?
 
 ---
 

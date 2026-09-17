@@ -60,7 +60,7 @@ function hideLoadingStep() {
 // Note: intentionally never calls hideLoadingStep() — the counter
 // only ticks down via loadCorePeopleAndLocations and loadTimelineData.
 function loadEvidenceData() {
-  fetch("../data/evidence.json")
+  fetch("/data/evidence.json")
     .then(function (res) { return res.json(); })
     .then(function (data) {
       state.allEvidence = data;
@@ -79,7 +79,7 @@ function loadEvidenceData() {
 
 async function loadTimelineData() {
   try {
-    const res = await fetch("../data/timeline.json");
+    const res = await fetch("/data/timeline.json");
     state.allTimeline = await res.json();
   } catch (err) {
     console.log("timeline load error", err);
@@ -89,13 +89,13 @@ async function loadTimelineData() {
 }
 
 async function loadCorePeopleAndLocations() {
-  const caseRes = await fetch("../data/case.json");
+  const caseRes = await fetch("/data/case.json");
   state.caseData = await caseRes.json();
 
-  const peopleRes = await fetch("../data/people.json");
+  const peopleRes = await fetch("/data/people.json");
   state.allPeople = await peopleRes.json();
 
-  const locationsRes = await fetch("../data/locations.json");
+  const locationsRes = await fetch("/data/locations.json");
   state.allLocations = await locationsRes.json();
 
   hideLoadingStep();

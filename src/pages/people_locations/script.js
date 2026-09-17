@@ -37,7 +37,7 @@ export function renderPeople() {
   let html = "";
   for (let i = 0; i < state.allPeople.length; i++) {
     const person = state.allPeople[i];
-    const avatarSrc = "../" + person.avatar.replace(/\.png$/i, ".webp"); // Adjust the path to the avatar image
+    const avatarSrc = "/" + person.avatar.replace(/\.png$/i, ".webp"); // Adjust the path to the avatar image
     const count = countEvidenceForPerson(person);
 
     html += '<div class="person-card">';

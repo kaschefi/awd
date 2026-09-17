@@ -9,7 +9,9 @@
 
     <div class="workspace-col">
       <h3>Personal Notes</h3>
-      <p class="hint-text">Notes are attached to whichever evidence item is currently open in the Evidence view.</p>
+      <p class="hint-text">
+        Notes are attached to whichever evidence item is currently open in the Evidence view.
+      </p>
       <div id="notesList" class="notes-list"></div>
     </div>
   </div>
@@ -41,22 +43,32 @@
 
       <div class="form-row">
         <label for="hypConfidence">Confidence (0&ndash;100)</label>
-        <input type="range" id="hypConfidence" min="0" max="100" value="50">
+        <input type="range" id="hypConfidence" min="0" max="100" value="50" />
         <output id="hypConfidenceValue">50</output>
       </div>
 
       <div class="form-row">
         <label for="hypExplanation">Written explanation</label>
-        <textarea id="hypExplanation" rows="4" placeholder="Explain your reasoning&hellip;"></textarea>
+        <textarea
+          id="hypExplanation"
+          rows="4"
+          placeholder="Explain your reasoning&hellip;"
+        ></textarea>
       </div>
 
       <div class="form-row">
         <label for="hypAlternative">Alternative explanation</label>
-        <textarea id="hypAlternative" rows="3" placeholder="What else could explain the evidence?"></textarea>
+        <textarea
+          id="hypAlternative"
+          rows="3"
+          placeholder="What else could explain the evidence?"
+        ></textarea>
       </div>
 
       <div class="form-actions">
-        <button type="button" class="btn btn-primary" onclick="saveHypothesis()">Save hypothesis draft</button>
+        <button type="button" class="btn btn-primary" onclick="saveHypothesis()">
+          Save hypothesis draft
+        </button>
         <span id="hypothesisSavedMsg" class="saved-msg hidden">Saved</span>
       </div>
     </form>

@@ -1,20 +1,27 @@
 import { state } from '../../state.js';
-import { findLocationById, findEvidenceById, formatDate, certaintyBadgeClass } from '../../utils.js';
+import {
+  findLocationById,
+  findEvidenceById,
+  formatDate,
+  certaintyBadgeClass,
+} from '../../utils.js';
 
 export function populateTimelineDropdowns() {
-  const personSelect = document.getElementById("timelinePersonFilter");
-  const locationSelect = document.getElementById("timelineLocationFilter");
-  const typeSelect = document.getElementById("timelineTypeFilter");
+  const personSelect = document.getElementById('timelinePersonFilter');
+  const locationSelect = document.getElementById('timelineLocationFilter');
+  const typeSelect = document.getElementById('timelineTypeFilter');
   if (!personSelect || !locationSelect || !typeSelect) return;
 
   personSelect.innerHTML = '<option value="">All people</option>';
   for (let p = 0; p < state.allPeople.length; p++) {
-    personSelect.innerHTML += '<option value="' + state.allPeople[p].id + '">' + state.allPeople[p].name + "</option>";
+    personSelect.innerHTML +=
+      '<option value="' + state.allPeople[p].id + '">' + state.allPeople[p].name + '</option>';
   }
 
   locationSelect.innerHTML = '<option value="">All locations</option>';
   for (let l = 0; l < state.allLocations.length; l++) {
-    locationSelect.innerHTML += '<option value="' + state.allLocations[l].id + '">' + state.allLocations[l].id + "</option>";
+    locationSelect.innerHTML +=
+      '<option value="' + state.allLocations[l].id + '">' + state.allLocations[l].id + '</option>';
   }
 
   const types = [];
@@ -23,18 +30,18 @@ export function populateTimelineDropdowns() {
   }
   typeSelect.innerHTML = '<option value="">All event types</option>';
   for (let t = 0; t < types.length; t++) {
-    typeSelect.innerHTML += '<option value="' + types[t] + '">' + types[t] + "</option>";
+    typeSelect.innerHTML += '<option value="' + types[t] + '">' + types[t] + '</option>';
   }
 }
 
 export function renderTimeline() {
-  const container = document.getElementById("timelineContainer");
+  const container = document.getElementById('timelineContainer');
   if (!container) return;
 
-  const order = document.getElementById("timelineOrder").value;
-  const personFilter = document.getElementById("timelinePersonFilter").value;
-  const locationFilter = document.getElementById("timelineLocationFilter").value;
-  const typeFilter = document.getElementById("timelineTypeFilter").value;
+  const order = document.getElementById('timelineOrder').value;
+  const personFilter = document.getElementById('timelinePersonFilter').value;
+  const locationFilter = document.getElementById('timelineLocationFilter').value;
+  const typeFilter = document.getElementById('timelineTypeFilter').value;
 
   let events = [];
   for (let i = 0; i < state.allTimeline.length; i++) {
@@ -47,40 +54,52 @@ export function renderTimeline() {
 
   events = events.slice().sort(function (a, b) {
     const diff = new Date(a.time) - new Date(b.time);
-    return order === "desc" ? -diff : diff;
+    return order === 'desc' ? -diff : diff;
   });
 
-  let html = "";
+  let html = '';
   for (let e = 0; e < events.length; e++) {
     const item = events[e];
     html += '<div class="timeline-event certainty-' + item.certainty + '">';
-    html += '<div class="timeline-time">' + formatDate(item.time) + '&nbsp;&middot;&nbsp;<span class="badge badge-' + certaintyBadgeClass(item.certainty) + '">' + item.certainty + "</span></div>";
-    html += "<h3>" + item.title + "</h3>";
-    html += "<p>" + item.description + "</p>";
+    html +=
+      '<div class="timeline-time">' +
+      formatDate(item.time) +
+      '&nbsp;&middot;&nbsp;<span class="badge badge-' +
+      certaintyBadgeClass(item.certainty) +
+      '">' +
+      item.certainty +
+      '</span></div>';
+    html += '<h3>' + item.title + '</h3>';
+    html += '<p>' + item.description + '</p>';
 
     const eventLocationNames = [];
     for (let el = 0; el < item.locationIds.length; el++) {
       const evtLoc = findLocationById(item.locationIds[el]);
-      eventLocationNames.push(evtLoc ? (evtLoc.id + " - " + evtLoc.name) : item.locationIds[el]);
+      eventLocationNames.push(evtLoc ? evtLoc.id + ' - ' + evtLoc.name : item.locationIds[el]);
     }
     if (eventLocationNames.length > 0) {
-      html += '<p class="evidence-meta">Location: ' + eventLocationNames.join(", ") + "</p>";
+      html += '<p class="evidence-meta">Location: ' + eventLocationNames.join(', ') + '</p>';
     }
 
     for (let ev2 = 0; ev2 < item.evidenceIds.length; ev2++) {
-      html += '<button type="button" class="evidence-link-btn" data-evidence-id="' + item.evidenceIds[ev2] + '">View ' + item.evidenceIds[ev2] + "</button>";
+      html +=
+        '<button type="button" class="evidence-link-btn" data-evidence-id="' +
+        item.evidenceIds[ev2] +
+        '">View ' +
+        item.evidenceIds[ev2] +
+        '</button>';
     }
-    html += "</div>";
+    html += '</div>';
   }
   if (events.length === 0) {
-    html = "<p>No timeline events match the current filters.</p>";
+    html = '<p>No timeline events match the current filters.</p>';
   }
   container.innerHTML = html;
 
-  const linkButtons = container.querySelectorAll(".evidence-link-btn");
+  const linkButtons = container.querySelectorAll('.evidence-link-btn');
   for (let b = 0; b < linkButtons.length; b++) {
-    linkButtons[b].addEventListener("click", function (e) {
-      openEvidenceModal(e.target.getAttribute("data-evidence-id"));
+    linkButtons[b].addEventListener('click', function (e) {
+      openEvidenceModal(e.target.getAttribute('data-evidence-id'));
     });
   }
 }
@@ -89,39 +108,54 @@ function openEvidenceModal(evidenceId) {
   const ev = findEvidenceById(evidenceId);
   if (!ev) return;
 
-  let modal = document.getElementById("quickViewModal");
+  let modal = document.getElementById('quickViewModal');
   if (!modal) {
-    modal = document.createElement("div");
-    modal.id = "quickViewModal";
+    modal = document.createElement('div');
+    modal.id = 'quickViewModal';
     document.body.appendChild(modal);
   }
 
   modal.innerHTML =
     '<div class="modal-backdrop"><div class="modal-box">' +
     '<button type="button" class="modal-close-btn" aria-label="Close">&times;</button>' +
-    "<h3>" + ev.title + "</h3>" +
-    '<p class="evidence-meta">' + ev.id + " &middot; " + ev.type + " &middot; " + formatDate(ev.timestamp) + "</p>" +
-    "<p>" + ev.summary + "</p>" +
-    '<button type="button" class="btn btn-primary btn-small" data-open-full="' + ev.id + '">Open full evidence</button>' +
-    "</div></div>";
+    '<h3>' +
+    ev.title +
+    '</h3>' +
+    '<p class="evidence-meta">' +
+    ev.id +
+    ' &middot; ' +
+    ev.type +
+    ' &middot; ' +
+    formatDate(ev.timestamp) +
+    '</p>' +
+    '<p>' +
+    ev.summary +
+    '</p>' +
+    '<button type="button" class="btn btn-primary btn-small" data-open-full="' +
+    ev.id +
+    '">Open full evidence</button>' +
+    '</div></div>';
 
   // Bug (Demo 4): modalCloseListenerCount increments every time the modal is
   // opened but the listener added below is NEVER removed. Repeated opens stack
   // listeners, which is only visible in the console log below.
   state.modalCloseListenerCount = 1;
-  console.log("modal opened, active close listeners:", state.modalCloseListenerCount);
+  console.log('modal opened, active close listeners:', state.modalCloseListenerCount);
 
   modal.onclick = function (e) {
-    if (e.target.classList.contains("modal-close-btn") || e.target.classList.contains("modal-backdrop")) {
-      modal.innerHTML = "";
+    if (
+      e.target.classList.contains('modal-close-btn') ||
+      e.target.classList.contains('modal-backdrop')
+    ) {
+      modal.innerHTML = '';
     }
-    if (e.target.getAttribute && e.target.getAttribute("data-open-full")) {
-      const id = e.target.getAttribute("data-open-full");
-      modal.innerHTML = "";
-      window.location.hash = "evidence";
+    if (e.target.getAttribute && e.target.getAttribute('data-open-full')) {
+      const id = e.target.getAttribute('data-open-full');
+      modal.innerHTML = '';
+      window.location.hash = 'evidence';
       setTimeout(function () {
         import('./script.js').then(function () {
-          window.location.hash = "evidence";
+          window.location.hash = 'evidence';
         });
       }, 50);
     }
@@ -132,8 +166,8 @@ export function init() {
   populateTimelineDropdowns();
   renderTimeline();
 
-  document.getElementById("timelineOrder").addEventListener("change", renderTimeline);
-  document.getElementById("timelinePersonFilter").addEventListener("change", renderTimeline);
-  document.getElementById("timelineLocationFilter").addEventListener("change", renderTimeline);
-  document.getElementById("timelineTypeFilter").addEventListener("change", renderTimeline);
+  document.getElementById('timelineOrder').addEventListener('change', renderTimeline);
+  document.getElementById('timelinePersonFilter').addEventListener('change', renderTimeline);
+  document.getElementById('timelineLocationFilter').addEventListener('change', renderTimeline);
+  document.getElementById('timelineTypeFilter').addEventListener('change', renderTimeline);
 }

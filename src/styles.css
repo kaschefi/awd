@@ -23,7 +23,7 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
   background: var(--color-bg);
   color: var(--color-text);
   line-height: 1.5;
@@ -336,7 +336,7 @@ a:focus-visible {
   margin-bottom: 0;
 }
 
-.toolbar input[type="text"] {
+.toolbar input[type='text'] {
   flex: 1 1 220px;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
@@ -688,7 +688,7 @@ a:focus-visible {
 }
 
 .timeline-event::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -32px;
   top: 18px;
@@ -778,7 +778,7 @@ a:focus-visible {
 
 .form-row select,
 .form-row textarea,
-.form-row input[type="range"] {
+.form-row input[type='range'] {
   padding: 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);

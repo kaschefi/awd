@@ -91,15 +91,15 @@ ticked. The table above is just a fast overview, tick the boxes inside each demo
 
 **Tasks**
 
-- [ ] Run the production build (`vite build`) and inspect the generated `dist/` folder.
-- [ ] Serve that build locally with `vite preview` (not the dev server) and confirm the app still works end-to-end from the built output.
-- [ ] Compare the dev-mode source with the built output for at least one file: note what changed (filenames, size, formatting/minification).
+- [x] Run the production build (`vite build`) and inspect the generated `dist/` folder.
+- [x] Serve that build locally with `vite preview` (not the dev server) and confirm the app still works end-to-end from the built output.
+- [x] Compare the dev-mode source with the built output for at least one file: note what changed (filenames, size, formatting/minification).
 
 **Questions** (depend on the tasks above)
 
-- [ ] Name at least three concrete transformations Vite applied to your source when building for production (e.g. bundling, minification, hashed filenames. Pick the ones you actually observed).
-- [ ] Why do production filenames typically include a content hash? What problem does that solve for real deployments?
-- [ ] Why would you never want to deploy the dev server itself (`vite dev`/`vite`) to real users, even though it "works"?
+- [x] Name at least three concrete transformations Vite applied to your source when building for production (e.g. bundling, minification, hashed filenames. Pick the ones you actually observed).
+- [x] Why do production filenames typically include a content hash? What problem does that solve for real deployments?
+- [x] Why would you never want to deploy the dev server itself (`vite dev`/`vite`) to real users, even though it "works"?
 
 ---
 
@@ -107,15 +107,15 @@ ticked. The table above is just a fast overview, tick the boxes inside each demo
 
 **Tasks**
 
-- [ ] Install and configure a linter (e.g. ESLint) and a formatter (e.g. Prettier) for this TypeScript/JS project.
-- [ ] Add these scripts to `package.json`: `dev`, `build`, `lint`, `lint:fix`, `format`. Each one must actually do something real when run, not just print a placeholder.
-- [ ] Run `lint` and show it catching at least one real issue in your code (introduce one on purpose if you have to). Run `lint:fix` and/or `format` and show it actually changing a file.
+- [x] Install and configure a linter (e.g. ESLint) and a formatter (e.g. Prettier) for this TypeScript/JS project.
+- [x] Add these scripts to `package.json`: `dev`, `build`, `lint`, `lint:fix`, `format`. Each one must actually do something real when run, not just print a placeholder.
+- [x] Run `lint` and show it catching at least one real issue in your code (introduce one on purpose if you have to). Run `lint:fix` and/or `format` and show it actually changing a file.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What's the difference between what a linter checks/fixes and what a formatter checks/fixes? Give one concrete finding from each tool on this codebase.
-- [ ] Why are `lint` and `lint:fix` two separate scripts instead of one script that always auto-fixes? When would you deliberately want the non-fixing version?
-- [ ] What does `npm run lint` (or `pnpm lint`) actually do under the hood? Where does npm/pnpm look for the `lint` command, and would it work if your linter weren't installed as a project dependency (only globally on your machine)?
+- [x] What's the difference between what a linter checks/fixes and what a formatter checks/fixes? Give one concrete finding from each tool on this codebase.
+- [x] Why are `lint` and `lint:fix` two separate scripts instead of one script that always auto-fixes? When would you deliberately want the non-fixing version?
+- [x] What does `npm run lint` (or `pnpm lint`) actually do under the hood? Where does npm/pnpm look for the `lint` command, and would it work if your linter weren't installed as a project dependency (only globally on your machine)?
 
 ---
 

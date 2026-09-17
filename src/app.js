@@ -3,31 +3,31 @@ import {
   loadBookmarksFromStorage,
   loadNotesFromStorage,
   applyStoredBookmarkFlags,
-  loadNoteAsync
+  loadNoteAsync,
 } from './state.js';
 
-// Route registry mapping views to their HTML and JS endpoints
+// Route registry mapping views to dynamic imports (enables Vite production code-splitting and bundling)
 const routes = {
   dashboard: {
-    html: 'pages/dashboard/index.html',
-    js: './pages/dashboard/script.js'
+    loadHtml: () => import('./pages/dashboard/index.html?raw'),
+    loadModule: () => import('./pages/dashboard/script.js'),
   },
   evidence: {
-    html: 'pages/evidence/index.html',
-    js: './pages/evidence/script.js'
+    loadHtml: () => import('./pages/evidence/index.html?raw'),
+    loadModule: () => import('./pages/evidence/script.js'),
   },
   people: {
-    html: 'pages/people_locations/index.html',
-    js: './pages/people_locations/script.js'
+    loadHtml: () => import('./pages/people_locations/index.html?raw'),
+    loadModule: () => import('./pages/people_locations/script.js'),
   },
   timeline: {
-    html: 'pages/timeline/index.html',
-    js: './pages/timeline/script.js'
+    loadHtml: () => import('./pages/timeline/index.html?raw'),
+    loadModule: () => import('./pages/timeline/script.js'),
   },
   workspace: {
-    html: 'pages/workspace/index.html',
-    js: './pages/workspace/script.js'
-  }
+    loadHtml: () => import('./pages/workspace/index.html?raw'),
+    loadModule: () => import('./pages/workspace/script.js'),
+  },
 };
 
 // ---------------------------------------------------------------------
@@ -35,10 +35,10 @@ const routes = {
 // ---------------------------------------------------------------------
 
 function showLoadingOverlay(msg) {
-  const overlay = document.getElementById("loadingOverlay");
-  const text = document.getElementById("loadingText");
+  const overlay = document.getElementById('loadingOverlay');
+  const text = document.getElementById('loadingText');
   if (text) text.textContent = msg;
-  if (overlay) overlay.classList.remove("hidden");
+  if (overlay) overlay.classList.remove('hidden');
 }
 
 // Bug (Demo 3/4): loadingStepsRemaining is decremented here.
@@ -47,8 +47,8 @@ function showLoadingOverlay(msg) {
 function hideLoadingStep() {
   state.loadingStepsRemaining--;
   if (state.loadingStepsRemaining <= 0) {
-    const overlay = document.getElementById("loadingOverlay");
-    if (overlay) overlay.classList.add("hidden");
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.classList.add('hidden');
   }
 }
 
@@ -60,8 +60,10 @@ function hideLoadingStep() {
 // Note: intentionally never calls hideLoadingStep() — the counter
 // only ticks down via loadCorePeopleAndLocations and loadTimelineData.
 function loadEvidenceData() {
-  fetch("/data/evidence.json")
-    .then(function (res) { return res.json(); })
+  fetch('/data/evidence.json')
+    .then(function (res) {
+      return res.json();
+    })
     .then(function (data) {
       state.allEvidence = data;
       applyStoredBookmarkFlags();
@@ -72,37 +74,37 @@ function loadEvidenceData() {
       state.evidenceViewLoading = false;
     })
     .catch(function (err) {
-      console.error("Failed to load evidence.json", err);
-      alert("Evidence could not be loaded. Some views may be incomplete.");
+      console.error('Failed to load evidence.json', err);
+      alert('Evidence could not be loaded. Some views may be incomplete.');
     });
 }
 
 async function loadTimelineData() {
   try {
-    const res = await fetch("/data/timeline.json");
+    const res = await fetch('/data/timeline.json');
     state.allTimeline = await res.json();
   } catch (err) {
-    console.log("timeline load error", err);
+    console.log('timeline load error', err);
   } finally {
     hideLoadingStep();
   }
 }
 
 async function loadCorePeopleAndLocations() {
-  const caseRes = await fetch("/data/case.json");
+  const caseRes = await fetch('/data/case.json');
   state.caseData = await caseRes.json();
 
-  const peopleRes = await fetch("/data/people.json");
+  const peopleRes = await fetch('/data/people.json');
   state.allPeople = await peopleRes.json();
 
-  const locationsRes = await fetch("/data/locations.json");
+  const locationsRes = await fetch('/data/locations.json');
   state.allLocations = await locationsRes.json();
 
   hideLoadingStep();
 }
 
 async function loadAllData() {
-  showLoadingOverlay("Loading case file…");
+  showLoadingOverlay('Loading case file…');
   state.loadingStepsRemaining = 2;
   await loadCorePeopleAndLocations();
   await loadEvidenceData();
@@ -119,35 +121,34 @@ export async function navigateTo(viewName) {
 window.navigateTo = navigateTo; // Expose globally for inline buttons in HTML snippets
 
 async function handleHashChange() {
-  let view = window.location.hash.replace("#", "").trim();
+  let view = window.location.hash.replace('#', '').trim();
   if (!routes[view]) {
-    view = "dashboard";
+    view = 'dashboard';
   }
   state.currentPage = view;
 
   // 1. Highlight current header nav button
-  document.querySelectorAll(".nav-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.getAttribute("data-view") === view);
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-view') === view);
   });
 
-  const appContainer = document.getElementById("app");
+  const appContainer = document.getElementById('app');
   const targetRoute = routes[view];
 
   try {
-    // 2. Fetch and inject view's HTML snippet
-    const res = await fetch(targetRoute.html);
-    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${targetRoute.html}`);
-    appContainer.innerHTML = await res.text();
+    // 2. Load and inject view's HTML snippet
+    const htmlModule = await targetRoute.loadHtml();
+    appContainer.innerHTML = htmlModule.default;
 
     // --- FIX: Add the 'active' class so styles.css displays the view ---
-    const viewSection = appContainer.querySelector(".view");
+    const viewSection = appContainer.querySelector('.view');
     if (viewSection) {
-      viewSection.classList.add("active");
+      viewSection.classList.add('active');
     }
 
     // 3. Dynamically import the page's JS and run its init()
-    const module = await import(targetRoute.js);
-    if (typeof module.init === "function") {
+    const module = await targetRoute.loadModule();
+    if (typeof module.init === 'function') {
       module.init();
     }
   } catch (err) {
@@ -164,26 +165,26 @@ async function initApp() {
   loadBookmarksFromStorage();
   loadNotesFromStorage();
   console.warn("that's a warning");
-  console.error("this is an error");
+  console.error('this is an error');
   // Fixed code smell: use forEach so each callback has its own button reference instead of broken var i
-  const navButtons = document.querySelectorAll(".nav-btn");
-  navButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      const targetView = btn.getAttribute("data-view");
-      console.log("nav clicked:", targetView);
+  const navButtons = document.querySelectorAll('.nav-btn');
+  navButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetView = btn.getAttribute('data-view');
+      console.log('nav clicked:', targetView);
     });
   });
 
-  window.addEventListener("hashchange", handleHashChange);
+  window.addEventListener('hashchange', handleHashChange);
 
   // only show dashboard after all data is loaded
   loadAllData().then(async function () {
     handleHashChange();
     // Bug (Demo 3): loadNoteAsync returns a Promise but it is logged directly
     // without .then() or await, so the console shows the Promise object itself.
-    const firstNote = await loadNoteAsync("E01");
-    console.log("First note preview:", firstNote);
+    const firstNote = await loadNoteAsync('E01');
+    console.log('First note preview:', firstNote);
   });
 }
 
-window.addEventListener("DOMContentLoaded", initApp);
+window.addEventListener('DOMContentLoaded', initApp);

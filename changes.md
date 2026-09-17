@@ -243,3 +243,87 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
    - **Native ESM compatibility:** Vite's dev server is designed around the browser's native `<script type="module">` support. It does not bundle code during development; instead, it serves modules on demand as the browser imports them.
    - **Fine-grained module graph:** Because the app was already separated into clean ES modules (`state.js`, `utils.js`, specific page scripts) with explicit `import`/`export` boundaries, Vite constructs a precise dependency graph. When a single file is edited, Vite only invalidates that exact file and its direct consumers, making re-compilation and HMR instantaneous.
    - In contrast, a monolithic single-`<script>` architecture has everything in one global scope. Changing any single function requires reloading the entire script and state, losing all benefits of module-level caching and granular HMR.
+
+***DEMO 3***
+
+**The Problem Encountered & The Fix:**
+- **Problem:** In dev mode, page views loaded via runtime string paths: `fetch('pages/dashboard/index.html')` and `import('./pages/dashboard/script.js')`. When running `vite build`, Vite/Rollup cannot statically trace dynamic string URLs passed into `fetch()`, so the `pages/` templates and scripts were omitted from the production `dist/` directory. Running `vite preview` caused view navigation to fail with 404 errors.
+- **Fix:** Refactored `routes` in `src/app.js` to use Vite dynamic imports with `?raw` for HTML templates (e.g. `loadHtml: () => import('./pages/dashboard/index.html?raw')`) and dynamic module imports (e.g. `loadModule: () => import('./pages/dashboard/script.js')`). This enables Vite to statically trace all views, bundle HTML directly into the build, and generate separate code-split chunks for each page in `dist/assets/`.
+
+**Production Build & Inspection:**
+- Ran `pnpm build` (`vite build`), which completed in ~200ms and generated:
+  - `dist/index.html` (2.01 kB, minified entry point)
+  - `dist/assets/index-ZAWMSz9M.css` (11.44 kB / 2.77 kB gzip, minified CSS bundle)
+  - Code-split JavaScript chunks for each page with content hashes (e.g. `dashboard-*.js`, `evidence-*.js`, `timeline-*.js`, `workspace-*.js`, `people_locations-*.js`, `utils-*.js`)
+  - `dist/data/` and `dist/assets/` copied from `public/`.
+- Served the build with `pnpm preview` (`vite preview`) and confirmed that all 5 views load and work end-to-end without errors.
+
+**Comparison (Dev vs. Built Output):**
+- **File: `src/styles.css` vs `dist/assets/index-ZAWMSz9M.css`**:
+  - Dev source: 853 lines, 15.3 KB with comments, whitespace, and human-readable formatting.
+  - Built output: 1 minified line, 11.4 KB (2.77 KB gzip); all comments and unnecessary whitespace stripped, selectors consolidated, and filename hashed.
+- **File: `src/app.js` vs `dist/assets/index-CFC5Nm62.js`**:
+  - Dev source: 190 lines, 6.4 KB with descriptive variable names and comments.
+  - Built output: 1 minified line; identifier names mangled to short symbols, imports bundled, and template strings minified.
+
+**Demo 3 Questions & Answers:**
+
+1. **Name at least three concrete transformations Vite applied to your source when building for production:**
+   - **Bundling & Code Splitting:** Combined imported modules into optimized chunks; inlined HTML view templates (`?raw`) into JavaScript chunks, and split views into separate dynamic chunks that only load on demand.
+   - **Minification & Tree-Shaking:** Stripped all whitespace, newlines, and comments from CSS and JS, mangled identifiers to short names, and eliminated unused exports.
+   - **Asset Content-Hashing:** Appended unique cryptographic hashes to output filenames (e.g. `index-ZAWMSz9M.css`, `index-CFC5Nm62.js`).
+
+2. **Why do production filenames typically include a content hash? What problem does that solve for real deployments?**
+   - It solves the problem of **stale browser caching while enabling aggressive long-term caching** (`Cache-Control: immutable, max-age=31536000`).
+   - If filenames were static (e.g. `app.js`), updating code and deploying would cause returning users to see broken or outdated apps because their browsers would serve the cached `app.js` file from disk.
+   - With content hashes, whenever file contents change, the hash changes (`index-ABC.js` -> `index-XYZ.js`). The new `index.html` references the new filename, forcing the browser to download the update immediately. Files that didn't change keep their hashes and are served instantly from cache.
+
+3. **Why would you never want to deploy the dev server itself (`vite dev`/`vite`) to real users, even though it "works"?**
+   - **Performance & Request Cascades:** In dev mode, files are unbundled and served individually on demand. A user loading the app would trigger dozens of individual HTTP requests, causing severe latency and request waterfall delays.
+   - **Bandwidth & Resource Overhead:** Dev mode serves unminified code, whitespace, source maps, and the internal Vite HMR client (`/@vite/client`), significantly increasing download sizes and memory usage.
+   - **No Long-Term Caching:** Files in dev mode do not have content hashes, meaning CDNs and browsers cannot cache them safely and effectively.
+   - **Server Security & Stability:** Vite dev server is designed for local development; it includes file watchers, exposed WebSocket connections, and lack of DDoS resilience or production-grade HTTP connection pooling.
+
+***DEMO 4***
+
+| Tool | Focus | What it checks | Real example from our project |
+| :--- | :--- | :--- | :--- |
+| **ESLint** *(Linter)* | **Code Correctness & Quality** (Logic bugs) | Bugs, unused variables, undefined variables, dead code, risky patterns. | Caught `const term = ...` in `evidence/script.js` that was created but never used (wasting memory / leftover logic error). |
+| **Prettier** *(Formatter)* | **Code Aesthetics & Style** (Visual consistency) | Line lengths, spacing, tabs vs. spaces, single vs. double quotes, trailing commas. | Found 15 files with inconsistent 2-space vs 4-space indents and mixed quotes, and normalizes them automatically. |
+
+### Commands to use & how to present live in class:
+
+1. **Check for lint errors (read-only):**
+   ```bash
+   pnpm lint
+   ```
+   *What to show:* Shows ESLint scanning files and printing warnings/errors with line numbers (e.g. unused variable `term` in `evidence/script.js`).
+
+2. **Automatically fix lint issues (where auto-fixable):**
+   ```bash
+   pnpm lint:fix
+   ```
+   *What to show:* ESLint automatically modifies the source files to fix auto-fixable rules (like `prefer-const`).
+
+3. **Automatically format the entire codebase with Prettier:**
+   ```bash
+   pnpm format
+   ```
+   *What to show:* Prettier scans all JS, TS, HTML, and CSS files in `src/` and instantly rewrites them to match our formatting rules (2-space indents, single quotes, clean spacing). Run `git diff` afterwards to show the exact formatting cleanup it made live.
+
+---
+
+**Demo 4 Questions & Answers:**
+
+1. **What's the difference between what a linter checks/fixes and what a formatter checks/fixes? Give one concrete finding from each tool on this codebase.**
+   - *(See table above)*. Linters analyze AST (Abstract Syntax Tree) to catch semantic and logic bugs (e.g., unused variable `term` in `src/pages/evidence/script.js`). Formatters analyze syntax purely for visual consistency without caring about program logic (e.g., standardizing 2-space indentation and single quotes across all 15 source files).
+
+2. **Why are `lint` and `lint:fix` two separate scripts instead of one script that always auto-fixes? When would you deliberately want the non-fixing version?**
+   - **In CI/CD pipelines (Quality Gates):** CI must never automatically mutate code; it must verify that pushed code already meets quality standards. If CI auto-fixed files, the deployed build might differ from what was tested or committed by the developer.
+   - **Risk of unintended logic changes:** Many lint rules require human judgment to fix properly (e.g., deleting an unused variable vs. actually using it in the intended logic). Auto-fixing blindly can mask real bugs.
+   - **Code reviews / Pre-commit checks:** Developers often want to inspect warnings and errors without unexpectedly altering their working tree or staging area.
+
+3. **What does `npm run lint` (or `pnpm lint`) actually do under the hood? Where does npm/pnpm look for the `lint` command, and would it work if your linter weren't installed as a project dependency (only globally on your machine)?**
+   - **Under the hood:** `pnpm lint` reads `package.json`, finds the `"lint"` script (`eslint .`), temporarily prepends `./node_modules/.bin` to the environment's `PATH`, and executes the command in a subshell.
+   - **Where it looks:** It looks in the local project's `./node_modules/.bin/eslint`.
+   - **If only installed globally:** If ESLint were only installed globally, `pnpm lint` might fall back to the system PATH on your machine, but **it would fail in CI or on teammates' computers** who don't have it installed globally. Furthermore, different machines might have different global versions with conflicting plugins. Installing it locally as a `devDependency` guarantees that every developer and CI runner executes the exact same version and configuration.

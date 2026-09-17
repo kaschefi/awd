@@ -1,6 +1,6 @@
-export const STORAGE_KEY_BOOKMARKS = "remotion_bookmarks";
-export const STORAGE_KEY_NOTES = "remotion_notes";
-export const STORAGE_KEY_HYPOTHESIS = "remotion_hypothesis";
+export const STORAGE_KEY_BOOKMARKS = 'remotion_bookmarks';
+export const STORAGE_KEY_NOTES = 'remotion_notes';
+export const STORAGE_KEY_HYPOTHESIS = 'remotion_hypothesis';
 
 // Central mutable state store
 export const state = {
@@ -8,18 +8,18 @@ export const state = {
   filteredEvidence: [],
   selectedEvidence: null,
   bookmarks: [],
-  currentPage: "dashboard",
+  currentPage: 'dashboard',
 
   allPeople: [],
   allLocations: [],
   allTimeline: [],
   caseData: {},
 
-  currentPeopleTab: "people",
+  currentPeopleTab: 'people',
   loadingStepsRemaining: 2,
   evidenceViewLoading: true,
   modalCloseListenerCount: 0,
-  notesStore: {}
+  notesStore: {},
 };
 
 // --- Storage Handlers ---
@@ -34,7 +34,7 @@ export function loadBookmarksFromStorage() {
     const parsed = raw ? JSON.parse(raw) : [];
     state.bookmarks = Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    console.warn("Could not read stored bookmarks, starting empty", err);
+    console.warn('Could not read stored bookmarks, starting empty', err);
     state.bookmarks = [];
   }
 }
@@ -51,7 +51,7 @@ export function saveNoteForEvidence(evidenceId, text) {
 }
 
 export function loadNoteForEvidence(evidenceId) {
-  return state.notesStore[evidenceId] || "";
+  return state.notesStore[evidenceId] || '';
 }
 
 export function loadNotesFromStorage() {
@@ -63,7 +63,7 @@ export function loadNotesFromStorage() {
   try {
     state.notesStore = JSON.parse(raw);
   } catch (err) {
-    console.warn("Could not read stored notes, resetting", err);
+    console.warn('Could not read stored notes, resetting', err);
     state.notesStore = {};
   }
 }
@@ -72,6 +72,6 @@ export function loadNotesFromStorage() {
 // will see "Promise { <pending> }" instead of the note text.
 export function loadNoteAsync(evidenceId) {
   return new Promise(function (resolve) {
-    resolve(state.notesStore[evidenceId] || "");
+    resolve(state.notesStore[evidenceId] || '');
   });
 }

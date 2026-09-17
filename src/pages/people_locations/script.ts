@@ -1,11 +1,14 @@
 import { state } from '../../state.js';
+import type { Person } from '../../types.js';
 
-export function switchPeopleTab(tab) {
+export function switchPeopleTab(tab: 'people' | 'locations'): void {
   state.currentPeopleTab = tab;
   const peoplePanel = document.getElementById('peoplePanel');
   const locationsPanel = document.getElementById('locationsPanel');
   const peopleTabBtn = document.getElementById('tabPeopleBtn');
   const locationsTabBtn = document.getElementById('tabLocationsBtn');
+
+  if (!peoplePanel || !locationsPanel || !peopleTabBtn || !locationsTabBtn) return;
 
   if (tab === 'people') {
     peoplePanel.classList.remove('hidden');
@@ -20,11 +23,19 @@ export function switchPeopleTab(tab) {
   }
 }
 
-function countEvidenceForPerson(person) {
+declare global {
+  interface Window {
+    switchPeopleTab?: (tab: 'people' | 'locations') => void;
+  }
+}
+window.switchPeopleTab = switchPeopleTab;
+
+function countEvidenceForPerson(person: Person): number {
   let count = 0;
   for (let i = 0; i < state.allEvidence.length; i++) {
     const ev = state.allEvidence[i];
     if (
+      ev &&
       ev.personIds &&
       (ev.personIds.indexOf(person.id) !== -1 || ev.personIds.indexOf(person.name) !== -1)
     ) {
@@ -34,13 +45,14 @@ function countEvidenceForPerson(person) {
   return count;
 }
 
-export function renderPeople() {
+export function renderPeople(): void {
   const container = document.getElementById('peoplePanel');
   if (!container) return;
   let html = '';
   for (let i = 0; i < state.allPeople.length; i++) {
     const person = state.allPeople[i];
-    const avatarSrc = '/' + person.avatar.replace(/\.png$/i, '.webp'); // Adjust the path to the avatar image
+    if (!person) continue;
+    const avatarSrc = '/' + person.avatar.replace(/\.png$/i, '.webp');
     const count = countEvidenceForPerson(person);
 
     html += '<div class="person-card">';
@@ -66,14 +78,17 @@ export function renderPeople() {
   }
   container.innerHTML = html;
 
-  const links = container.querySelectorAll('.evidence-count-link');
+  const links = container.querySelectorAll<HTMLButtonElement>('.evidence-count-link');
   for (let l = 0; l < links.length; l++) {
-    links[l].addEventListener('click', function (e) {
-      const personId = e.target.getAttribute('data-person-id');
+    const link = links[l];
+    if (!link) continue;
+    link.addEventListener('click', function (e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      const personId = target ? target.getAttribute('data-person-id') : null;
       window.location.hash = 'evidence';
       setTimeout(function () {
-        const filterEl = document.getElementById('filterPerson');
-        if (filterEl) {
+        const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
+        if (filterEl && personId) {
           filterEl.value = personId;
           filterEl.dispatchEvent(new Event('change'));
         }
@@ -82,13 +97,14 @@ export function renderPeople() {
   }
 }
 
-export function renderLocations() {
+export function renderLocations(): void {
   const container = document.getElementById('locationsPanel');
   if (!container) return;
 
   let html = '';
   for (let i = 0; i < state.allLocations.length; i++) {
     const loc = state.allLocations[i];
+    if (!loc) continue;
     html += '<div class="location-card">';
     html += '<h3>' + loc.id + ' &mdash; ' + loc.name + '</h3>';
     html += '<p>' + loc.description + '</p>';
@@ -101,15 +117,15 @@ export function renderLocations() {
   container.innerHTML = html;
 }
 
-export function init() {
+export function init(): void {
   renderPeople();
   renderLocations();
   switchPeopleTab(state.currentPeopleTab || 'people');
 
   document
     .getElementById('tabPeopleBtn')
-    .addEventListener('click', () => switchPeopleTab('people'));
+    ?.addEventListener('click', () => switchPeopleTab('people'));
   document
     .getElementById('tabLocationsBtn')
-    .addEventListener('click', () => switchPeopleTab('locations'));
+    ?.addEventListener('click', () => switchPeopleTab('locations'));
 }

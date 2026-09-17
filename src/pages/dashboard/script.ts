@@ -1,20 +1,21 @@
 import { state } from '../../state.js';
 import { formatDate, getStatusBadgeClass } from '../../utils.js';
 
-const statCardHTML = (value, label) =>
+const statCardHTML = (value: number | string, label: string): string =>
   '<div class="stat-card"><div class="stat-value">' +
   value +
   '</div><div class="stat-label">' +
   label +
   '</div></div>';
 
-export function renderDashboard() {
+export function renderDashboard(): void {
   const container = document.getElementById('dashboardContent');
   if (!container) return;
 
   let reviewedCount = 0;
   for (let i = 0; i < state.allEvidence.length; i++) {
-    if ((state.allEvidence[i].status || '').toLowerCase() === 'reviewed') reviewedCount++;
+    const item = state.allEvidence[i];
+    if (item && (item.status || '').toLowerCase() === 'reviewed') reviewedCount++;
   }
 
   const progressPct =
@@ -58,6 +59,7 @@ export function renderDashboard() {
   }
   for (let e = 0; e < recentEvidence.length; e++) {
     const ev = recentEvidence[e];
+    if (!ev) continue;
     html +=
       '<div class="mini-list-item"><strong>' +
       ev.id +
@@ -78,6 +80,7 @@ export function renderDashboard() {
   }
   for (let t = 0; t < recentTimeline.length; t++) {
     const evt = recentTimeline[t];
+    if (!evt) continue;
     html +=
       '<div class="mini-list-item"><strong>' +
       formatDate(evt.time) +
@@ -92,6 +95,6 @@ export function renderDashboard() {
   container.innerHTML = html;
 }
 
-export function init() {
+export function init(): void {
   renderDashboard();
 }

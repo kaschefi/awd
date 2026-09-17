@@ -67,6 +67,7 @@ export interface Evidence {
   tags: string[];
   status: EvidenceStatus;
   relevance: EvidenceRelevance;
+  bookmarked?: boolean;
 }
 
 export interface HypothesisDraft {
@@ -79,31 +80,20 @@ export interface HypothesisDraft {
 }
 
 export interface AppState {
-  caseData: Partial<CaseData>;
   allEvidence: Evidence[];
   filteredEvidence: Evidence[];
+  selectedEvidence: Evidence | null;
+  bookmarks: string[];
+  currentPage: string;
+
   allPeople: Person[];
   allLocations: Location[];
   allTimeline: TimelineEvent[];
-  bookmarks: string[];
-  notes: Record<string, string>;
-  activeFilters: {
-    type: string;
-    person: string;
-    location: string;
-    status: string;
-    relevance: string;
-    search: string;
-  };
-  currentSort: string;
-  timelineSortOrder: 'asc' | 'desc';
-  timelineFilters: {
-    person: string;
-    location: string;
-    type: string;
-  };
+  caseData: Partial<CaseData>;
+
   currentPeopleTab: 'people' | 'locations';
   loadingStepsRemaining: number;
   evidenceViewLoading: boolean;
-  currentPage: string;
+  modalCloseListenerCount: number;
+  notesStore: Record<string, string>;
 }

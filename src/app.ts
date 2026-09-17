@@ -6,8 +6,21 @@ import {
   loadNoteAsync,
 } from './state.js';
 
+import {
+  fetchCaseData,
+  fetchEvidenceData,
+  fetchLocationsData,
+  fetchPeopleData,
+  fetchTimelineData,
+} from './dataLoader.js';
+
+interface RouteEntry {
+  loadHtml: () => Promise<{ default: string }>;
+  loadModule: () => Promise<{ init?: () => void }>;
+}
+
 // Route registry mapping views to dynamic imports (enables Vite production code-splitting and bundling)
-const routes = {
+const routes: Record<string, RouteEntry> = {
   dashboard: {
     loadHtml: () => import('./pages/dashboard/index.html?raw'),
     loadModule: () => import('./pages/dashboard/script.js'),
@@ -34,7 +47,7 @@ const routes = {
 // LOADING OVERLAY HELPERS
 // ---------------------------------------------------------------------
 
-function showLoadingOverlay(msg) {
+function showLoadingOverlay(msg: string): void {
   const overlay = document.getElementById('loadingOverlay');
   const text = document.getElementById('loadingText');
   if (text) text.textContent = msg;
@@ -44,21 +57,13 @@ function showLoadingOverlay(msg) {
 // Bug (Demo 3/4): loadingStepsRemaining is decremented here.
 // loadEvidenceData() never calls hideLoadingStep(), so if timeline
 // also fails to reach its .finally(), the overlay may never hide.
-function hideLoadingStep() {
+function hideLoadingStep(): void {
   state.loadingStepsRemaining--;
   if (state.loadingStepsRemaining <= 0) {
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) overlay.classList.add('hidden');
   }
 }
-
-import {
-  fetchCaseData,
-  fetchEvidenceData,
-  fetchLocationsData,
-  fetchPeopleData,
-  fetchTimelineData,
-} from './dataLoader.js';
 
 // ---------------------------------------------------------------------
 // DATA FETCHING (BOOTSTRAP)
@@ -67,7 +72,7 @@ import {
 // Loads evidence.json independently (not awaited by the caller).
 // Note: intentionally never calls hideLoadingStep() — the counter
 // only ticks down via loadCorePeopleAndLocations and loadTimelineData.
-function loadEvidenceData() {
+function loadEvidenceData(): void {
   fetchEvidenceData()
     .then(function (data) {
       state.allEvidence = data;
@@ -78,23 +83,23 @@ function loadEvidenceData() {
       // path and the evidence list was never rendered.
       state.evidenceViewLoading = false;
     })
-    .catch(function (err) {
+    .catch(function (err: unknown) {
       console.error('Failed to load evidence.json', err);
       alert('Evidence could not be loaded. Some views may be incomplete.');
     });
 }
 
-async function loadTimelineData() {
+async function loadTimelineData(): Promise<void> {
   try {
     state.allTimeline = await fetchTimelineData();
-  } catch (err) {
+  } catch (err: unknown) {
     console.log('timeline load error', err);
   } finally {
     hideLoadingStep();
   }
 }
 
-async function loadCorePeopleAndLocations() {
+async function loadCorePeopleAndLocations(): Promise<void> {
   state.caseData = await fetchCaseData();
   state.allPeople = await fetchPeopleData();
   state.allLocations = await fetchLocationsData();
@@ -102,11 +107,11 @@ async function loadCorePeopleAndLocations() {
   hideLoadingStep();
 }
 
-async function loadAllData() {
+async function loadAllData(): Promise<void> {
   showLoadingOverlay('Loading case file…');
   state.loadingStepsRemaining = 2;
   await loadCorePeopleAndLocations();
-  await loadEvidenceData();
+  loadEvidenceData();
   await loadTimelineData();
 }
 
@@ -114,12 +119,18 @@ async function loadAllData() {
 // ROUTER & NAVIGATION
 // ---------------------------------------------------------------------
 
-export async function navigateTo(viewName) {
+export async function navigateTo(viewName: string): Promise<void> {
   window.location.hash = viewName;
+}
+
+declare global {
+  interface Window {
+    navigateTo: (viewName: string) => Promise<void>;
+  }
 }
 window.navigateTo = navigateTo; // Expose globally for inline buttons in HTML snippets
 
-async function handleHashChange() {
+async function handleHashChange(): Promise<void> {
   let view = window.location.hash.replace('#', '').trim();
   if (!routes[view]) {
     view = 'dashboard';
@@ -132,6 +143,8 @@ async function handleHashChange() {
   });
 
   const appContainer = document.getElementById('app');
+  if (!appContainer) return;
+
   const targetRoute = routes[view];
 
   try {
@@ -150,7 +163,7 @@ async function handleHashChange() {
     if (typeof module.init === 'function') {
       module.init();
     }
-  } catch (err) {
+  } catch (err: unknown) {
     console.error(`Error loading view [${view}]:`, err);
     appContainer.innerHTML = `<p class="error-msg">Failed to load view: ${view}</p>`;
   }
@@ -160,7 +173,7 @@ async function handleHashChange() {
 // INITIALIZATION
 // ---------------------------------------------------------------------
 
-async function initApp() {
+async function initApp(): Promise<void> {
   loadBookmarksFromStorage();
   loadNotesFromStorage();
   console.warn("that's a warning");

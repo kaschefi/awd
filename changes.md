@@ -454,3 +454,53 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
      - For the core object shapes themselves (`Person`, `Location`, etc.), **it does not practically matter** for static analysis: both compile away completely to 0 bytes of JavaScript, and both provide identical property type checking and editor autocompletion.
      - However, separating them follows TypeScript idiomatic best practices: use `interface` for extensible object contracts and data records, and use `type` for unions and primitives.
 
+***DEMO 7***
+
+**Full TypeScript Migration Completed (Zero `any`):**
+- Converted 100% of remaining application modules from `.js` to `.ts`:
+  - `src/state.ts`: Central reactive store strongly typed with `AppState`, strict storage deserialization with `unknown`, and safe type narrowing.
+  - `src/app.ts`: Dynamic router registry (`Record<string, RouteEntry>`), global `window.navigateTo` typing, and null-safe view lifecycle handling.
+  - `src/pages/dashboard/script.ts`: Typed metrics calculation, progress percentage rounding, and null-guarded container rendering.
+  - `src/pages/people_locations/script.ts`: Strict tab union (`'people' | 'locations'`), typed entity lookups, and event target attribute retrieval.
+  - `src/pages/timeline/script.ts`: Strict timeline event filtering, chronological sorting with explicit `.getTime()` milliseconds, and modal lifecycle typing.
+  - `src/pages/workspace/script.ts`: Typed hypothesis draft forms, confidence range slider synchronization, and local storage persistence.
+  - `src/pages/evidence/script.ts`: Multi-criteria search and filter engine, union type-safe status/relevance updates, note autosave, and bookmark state toggles.
+  - `src/vite-env.d.ts`: Configured `/// <reference types="vite/client" />` so TypeScript recognizes Vite-specific `?raw` HTML import specifiers.
+
+---
+
+### Real Spots Flagged by Compiler: Latent Bug vs. Compiler Pedantry
+
+| # | What the compiler flagged | Code Location | Real Latent Bug or Pedantry? | Explanation & Resolution |
+| :- | :--- | :--- | :--- | :--- |
+| **1** | **Subtracting `Date` objects directly (`new Date(a.time) - new Date(b.time)`)** | `timeline/script.ts`, `evidence/script.ts` | **REAL LATENT BUG** | In JS, subtracting Date objects relies on implicit coercion via `.valueOf()`. If any timestamp string is corrupted or invalid, `new Date()` produces `Invalid Date` whose subtraction yields `NaN`. In JS array sorting, `NaN` comparisons silently fail, corrupting sort order. TypeScript flagged TS2362 (`arithmetic operation must be number/bigint`), forcing us to call `.getTime()`, making timestamp math explicit and safe. |
+| **2** | **Direct `.value` property access on generic `HTMLElement`** | `timeline/script.ts`, `workspace/script.ts`, `evidence/script.ts` | **PEDANTRY / TYPE SOUNDNESS** | In HTML, generic `HTMLElement` does not have a `.value` property (only `HTMLInputElement`, `HTMLSelectElement`, etc. do). While `<select>` elements have `.value` at runtime, TypeScript statically cannot know the HTML tag of an arbitrary `getElementById` call. We resolved this with safe narrowing and type assertions (`as HTMLSelectElement \| null`). |
+| **3** | **Unvalidated string assignment to strict union types** | `evidence/script.ts` (`ev.status = e.target.value`) | **REAL LATENT BUG** | In plain JS, any string or typo (`"reviewed"`, `"Reviewd"`, `"archived"`) could be assigned to `ev.status`. This would silently break CSS badge classes (`getStatusBadgeClass(ev.status)` returning empty) and filter matching. TypeScript flagged TS2322, forcing us to validate and cast: `target.value as EvidenceStatus`. |
+| **4** | **Ad-hoc property mutation on domain objects (`ev.bookmarked`)** | `state.ts`, `workspace/script.ts`, `evidence/script.ts` | **REAL LATENT BUG** | Raw `evidence.json` does not have a `bookmarked` property; `applyStoredBookmarkFlags()` mutates evidence items at runtime. In plain JS, accessing `ev.bookmarked` before flags are applied returns `undefined`, which can cause erratic UI state. TypeScript flagged TS2339 (`Property 'bookmarked' does not exist on type 'Evidence'`), forcing us to explicitly declare `bookmarked?: boolean;` on `Evidence`. |
+| **5** | **Null safety on DOM container lookups (`strictNullChecks`)** | `app.ts`, `dashboard/script.ts`, `people_locations/script.ts`, etc. | **REAL LATENT BUG** | `document.getElementById('app')` returns `HTMLElement \| null`. Under strict null checks, accessing `.innerHTML` directly raises TS2531 (`Object is possibly 'null'`). If an element ID was misspelled or queried before rendering, plain JS would crash the entire application with `TypeError: Cannot set properties of null`. TypeScript forced explicit guards (`if (!container) return;`). |
+
+---
+
+**Demo 7 Questions & Answers:**
+
+1. **Show one specific type error you had to actually think about (not just silence with `any` or the `!` non-null assertion). What did it tell you about your code that plain JS review or testing hadn't?**
+   - **The Error:** Subtracting `Date` instances in array sort callbacks (`new Date(a.time) - new Date(b.time)` in `timeline/script.ts` and `evidence/script.ts`).
+   - **What it told us:** In JavaScript, developers frequently subtract `new Date()` objects because JS silently coerces them to epoch milliseconds via `.valueOf()`. However, TypeScript explicitly disallowed this with:
+     `The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type. (TS2362)`
+     This forced us to inspect what happens if an unparseable timestamp or undefined field ever enters the array: subtracting yields `NaN`, which breaks the sort algorithm contract without throwing an exception, leading to silent, non-reproducible UI bugs. Using `.getTime()` explicitly converts the date to a verified `number`, ensuring mathematical and algorithmic correctness.
+
+2. **When (if ever) is reaching for `any` the right call during a migration like this, versus a sign you should model the type properly? Where did you draw that line?**
+   - **When `any` might be acceptable:**
+     - Only as an emergency, temporary transitional bridge in massive legacy codebases where an un-typed third-party library has no `@types` definition available on DefinitelyTyped.
+     - Even in that scenario, `unknown` combined with type narrowing/guards or a custom `.d.ts` ambient declaration is vastly superior to `any`.
+   - **Where we drew the line:**
+     - **We drew a hard line: ZERO `any` across our entire codebase.**
+     - Reaching for `any` is a sign of bypassing the type system rather than modeling domain reality. For uncertain inputs (such as reading unvalidated JSON strings from `localStorage`), we used `unknown` and performed explicit runtime validation (`Array.isArray(parsed)`, `typeof parsed === 'object'`), and for DOM lookups, we used precise DOM element subtypes (`HTMLSelectElement`, `HTMLInputElement`).
+
+3. **Did the migration reveal anything that was a genuine, previously-unnoticed bug (as opposed to just noise)? If yes, explain it. If no, explain how you're confident it was only noise.**
+   - **Yes, it revealed genuine issues:**
+     1. **Unused leftover variables:** ESLint and TypeScript caught `const term = ...` in `evidence/script.js` and `const id = ...` in `timeline/script.js` that were assigned but never used (vestiges of dead code from prior iterations).
+     2. **Date arithmetic coercion risks:** Caught implicit object arithmetic in `.sort()` functions.
+     3. **Unprotected DOM access:** Revealed multiple spots where DOM container queries were assumed to always succeed, which would crash with unhandled `TypeError` if an element ID changed in an HTML template.
+     4. **Unmodeled property mutation:** Unveiled that `ev.bookmarked` was being mutated dynamically onto evidence objects without being part of any documented data contract.
+

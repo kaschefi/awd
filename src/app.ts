@@ -180,8 +180,7 @@ async function initApp(): Promise<void> {
   console.error('this is an error');
   // this line will break the action workflow in github because we dont use it anywhere
   // const deliberateError = 'broken';
-  // this time we push a file with a real ts error
-  const testTypeError: number = 'cannot assign string to number';
+  // Demo 10 test verified: deliberate type error was caught by CI before deployment
 
   // Fixed code smell: use forEach so each callback has its own button reference instead of broken var i
   const navButtons = document.querySelectorAll('.nav-btn');

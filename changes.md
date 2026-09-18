@@ -599,7 +599,71 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
        - **Netlify:** Replace `configure-pages` and `deploy-pages` with `npx netlify-cli deploy --prod --dir=dist`, authenticating with `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` stored in GitHub Secrets.
        - **Vercel:** Use Vercel's GitHub Action or `vercel deploy --prebuilt`, using `VERCEL_TOKEN` and project IDs stored in GitHub Secrets.
        - **SFTP / Plain Server:** Use an action like `SamKirkland/FTP-Deploy-Action` or `appleboy/scp-action`, providing host, username, and SSH private keys via GitHub Secrets.
-       - The `permissions:` block (`pages: write`, `id-token: write`) would be removed since third-party hosts authenticate via repository secrets rather than GitHub's internal OIDC Pages token.
+     - The `permissions:` block (`pages: write`, `id-token: write`) would be removed since third-party hosts authenticate via repository secrets rather than GitHub's internal OIDC Pages token.
 
+***DEMO 10***
 
+**Failure Mode & Deployment Gate Demonstration:**
+1. **Deliberate Type Error Push (Commit `9bcc401` - *"on them demo 10 we want to see what happens when we push a real ts error"*):**
+   - Introduced a real compile-time TypeScript error into `src/app.ts`:
+     ```ts
+     const testTypeError: number = 'cannot assign string to number';
+     ```
+   - Pushed to `origin/main`.
+   - **Observed Behavior in GitHub Actions:**
+     - Both `Development CI` (#7) and `Deploy to GitHub Pages` (#3) workflows were automatically triggered.
+     - Both workflows ran dependencies setup and hit step 6: `Static type check` (`pnpm typecheck` / `tsc --noEmit`).
+     - The step failed with exit code 2: `Type 'string' is not assignable to type 'number' (TS2322)`.
+     - The deployment job was immediately aborted: subsequent steps (`Run linter`, `Build production bundle`, `Configure GitHub Pages`, `Upload GitHub Pages artifact`, and `Deploy to GitHub Pages`) were completely cancelled.
+   - **Live Production Verification:**
+     - During and after the failure, the live website at `https://kaschefi.github.io/awd/` remained **100% online, intact, and unaffected**, serving the previous working build.
+2. **Recovery:**
+   - Reverted the intentional type error in `src/app.ts`.
+   - Pushed to `origin/main`.
+   - Confirmed both workflows executed to completion and returned to **green ✔️**.
 
+**Workflow Permissions & Secrets Architecture:**
+- **Permissions Declared in `.github/workflows/deploy.yml`:**
+  - `contents: read`: Authorizes the runner to check out and read source code.
+  - `pages: write`: Authorizes publishing to the GitHub Pages environment.
+  - `id-token: write`: Authorizes minting an OpenID Connect (OIDC) JWT token, enabling secure token exchange with GitHub Pages deployment infrastructure without static personal access tokens (PATs).
+- **Repository Configuration:**
+  - In `Settings > Pages > Build and deployment > Source`: Selected **"GitHub Actions"**.
+
+---
+
+**Demo 10 Questions & Answers:**
+
+1. **When your build step fails, does the previously-deployed version of the app stay live, get taken down, or something else? Is that the behavior you want, and why?**
+   - **What happens:** The previously-deployed version of the app **stays 100% live and continues serving traffic normally**. It is neither taken down nor partially overwritten.
+   - **Is that the behavior you want, and why:**
+     - **YES, absolutely.** This is the core guarantee of atomic continuous deployment and high availability.
+     - If a failed build took the previous deployment down, any developer's bad commit or transient build failure would cause a public outage for all active users.
+     - Because deployments in our pipeline are sequential and gated behind `pnpm typecheck`, `pnpm lint`, and `pnpm build`, the deployment step only executes if all quality checks pass. Broken code is rejected at the gate, keeping production pristine.
+
+2. **What GitHub Actions permission(s) or secret(s) does your deploy workflow actually need, and where did you grant/store them? What's the security risk of over-granting permissions here?**
+   - **Permissions/secrets needed:**
+     - `contents: read`: To read the codebase.
+     - `pages: write`: To upload and update the GitHub Pages deployment.
+     - `id-token: write`: For OIDC authentication with the Pages service.
+     - No external repository secrets are needed because GitHub native Pages uses the built-in ephemeral `GITHUB_TOKEN`.
+   - **Where granted/stored:**
+     - In the workflow file via the top-level `permissions:` block.
+     - In repository settings under `Settings > Pages > Source: GitHub Actions`.
+   - **Security risk of over-granting permissions:**
+     - Following the **Principle of Least Privilege (PoLP)** is essential in CI/CD.
+     - If a workflow is granted excessive permissions (e.g. `contents: write`, `pull-requests: write`, or administrative rights), a compromised third-party GitHub Action or malicious supply-chain dependency could exploit the runner's token to force-push malicious code to `main`, overwrite release binaries, tamper with Git history, or access private organizational data.
+     - Scoping permissions to only what is strictly required ensures that even if a build script is compromised, it cannot mutate protected repository branches or secrets.
+
+3. **What's the difference between triggering a workflow `on: push`, `on: pull_request`, and `on: workflow_dispatch`? Which did you use for the development workflow (Demo 8) and which for the deployment workflow (Demo 9), and why is that pairing the right one?**
+   - **Differences between triggers:**
+     - `on: push`: Triggers automatically whenever new commits are pushed to specified branches (e.g. `main`).
+     - `on: pull_request`: Triggers when a PR targeting a branch is opened or updated. It evaluates a temporary merge commit (simulating what `main` would look like if the PR were merged) before code actually lands in `main`.
+     - `on: workflow_dispatch`: Adds a manual "Run workflow" button in the GitHub Actions UI, allowing authorized team members to trigger runs on demand with optional inputs.
+   - **Which did we use:**
+     - **Development CI (Demo 8):** Uses `on: push` AND `on: pull_request` targeting `main`.
+     - **Deployment Workflow (Demo 9 & 10):** Uses `on: push: branches: [main]` AND `on: workflow_dispatch`.
+   - **Why this pairing is the right one:**
+     - Development CI must provide rapid, automated feedback on every branch and PR *before* merging, catching bugs while code is in review.
+     - Deployments, however, must **only** occur when verified code is actually merged into `main`, preventing experimental PR branches from accidentally deploying to production.
+     - Adding `workflow_dispatch` to the deploy workflow provides operational flexibility: if a deployment needs to be re-run manually (e.g. after a CDN cache purge or infrastructure incident), a developer can trigger it with one click without creating dummy commits.

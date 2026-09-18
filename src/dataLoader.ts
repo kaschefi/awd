@@ -9,21 +9,21 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export async function fetchCaseData(): Promise<CaseData> {
-  return fetchJson<CaseData>('/data/case.json');
+  return fetchJson<CaseData>('./data/case.json');
 }
 
 export async function fetchPeopleData(): Promise<Person[]> {
-  return fetchJson<Person[]>('/data/people.json');
+  return fetchJson<Person[]>('./data/people.json');
 }
 
 export async function fetchLocationsData(): Promise<Location[]> {
-  return fetchJson<Location[]>('/data/locations.json');
+  return fetchJson<Location[]>('./data/locations.json');
 }
 
 export async function fetchTimelineData(): Promise<TimelineEvent[]> {
-  return fetchJson<TimelineEvent[]>('/data/timeline.json');
+  return fetchJson<TimelineEvent[]>('./data/timeline.json');
 }
 
 export async function fetchEvidenceData(): Promise<Evidence[]> {
-  return fetchJson<Evidence[]>('/data/evidence.json');
+  return fetchJson<Evidence[]>('./data/evidence.json');
 }

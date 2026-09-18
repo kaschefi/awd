@@ -555,4 +555,51 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
    - **Correctness-wise:**
      - Removing caching would **not** affect correctness. `pnpm install --frozen-lockfile` guarantees that the exact package versions and integrity hashes in `pnpm-lock.yaml` are strictly installed either way. Caching is purely a performance optimization and does not alter the installed dependency tree.
 
+***DEMO 9***
+
+**GitHub Pages Deployment Workflow (`.github/workflows/deploy.yml`):**
+- Configured automated deployment pipeline on push to `main` (and manual `workflow_dispatch`):
+  - **Permissions:** `contents: read`, `pages: write`, `id-token: write` (for OpenID Connect token authentication with GitHub Pages).
+  - **Concurrency:** `group: 'pages'`, `cancel-in-progress: false` (prevents race conditions from simultaneous deployments).
+  - **Pipeline Steps:**
+    - Code checkout via `actions/checkout@v4`
+    - Setup `pnpm@12.4.2` and `Node.js v22` with store caching
+    - Install dependencies with `--frozen-lockfile`
+    - Quality gates: `pnpm typecheck` and `pnpm lint`
+    - Build production bundle: `pnpm build` (`dist/` directory)
+    - Configure Pages environment: `actions/configure-pages@v5`
+    - Package and upload artifact: `actions/upload-pages-artifact@v3` targeting `./dist`
+    - Publish to GitHub Pages: `actions/deploy-pages@v4`
+
+**Base Path & Static Hosting Fix for GitHub Pages:**
+- In `vite.config.js`, added `base: './'`.
+- Updated asset and data loading paths in `src/index.html` (`./assets/logo/logo.svg`), `src/dataLoader.ts` (`./data/*.json`), and `src/pages/people_locations/script.ts` (`./assets/people/*.webp`).
+- This guarantees that whether the app is hosted at the domain root (`http://localhost:5173/`), in preview mode (`http://localhost:4173/`), or under the GitHub Pages subfolder (`https://kaschefi.github.io/awd/`), all scripts, stylesheets, logos, and JSON fixtures resolve properly with 0 404 errors.
+
+---
+
+**Demo 9 Questions & Answers:**
+
+1. **Why does the deploy workflow re-run lint and build itself, instead of trusting "it already passed on my machine" or reusing Demo 8's workflow's result directly?**
+   - **Clean-Room Verification:** A local machine can have uncommitted changes, global environment overrides, uncommitted local config files, or dirty build caches. Running the full build inside a standardized clean-room CI runner guarantees that the deployed application is 100% reproducible and built strictly from the committed source code.
+   - **Workflow Independence & Atomicity:** Demo 8 is a pull-request/development quality check, whereas Demo 9 is an authoritative release pipeline. Reusing artifacts across independent workflows creates race conditions (e.g. which commit produced the artifact?) and security vulnerabilities (artifact tampering). Building directly in the deployment workflow guarantees an atomic, verified artifact linked directly to the commit SHA being deployed.
+
+2. **What is the actual mechanism your deploy workflow uses to publish to GitHub Pages (e.g. a dedicated deploy action publishing an artifact, pushing to a `gh-pages` branch, or something else)? Explain, concretely, what it does.**
+   - Our workflow uses the **official GitHub Actions native Pages deployment mechanism** (`actions/upload-pages-artifact` + `actions/deploy-pages`):
+     1. `actions/upload-pages-artifact@v3` packages the `./dist` directory into a secure `.tar.gz` archive and registers it with GitHub's Artifact Service.
+     2. `actions/deploy-pages@v4` requests an OIDC (OpenID Connect) token using the `id-token: write` permission to securely authenticate with GitHub's internal deployment service without long-lived personal access tokens (PATs).
+     3. GitHub Pages infrastructure downloads and extracts the archive onto its CDN edge servers and updates the live site routing atomically.
+     4. This eliminates the legacy need for a dirty `gh-pages` git branch, keeping the repository's commit history clean.
+
+3. **What would you need to change in this workflow if you were deploying to a different static host instead (e.g. Netlify, Vercel, a plain server over SFTP)? What would stay the same?**
+   - **What stays 100% the same:**
+     - The entire build pipeline: checkout repo, install pnpm, install dependencies with frozen lockfile, run static typecheck (`tsc`), run linter (`eslint`), and generate the production bundle (`vite build`). The static output in `dist/` is completely host-agnostic.
+   - **What would change:**
+     - **The deployment action and authentication:**
+       - **Netlify:** Replace `configure-pages` and `deploy-pages` with `npx netlify-cli deploy --prod --dir=dist`, authenticating with `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` stored in GitHub Secrets.
+       - **Vercel:** Use Vercel's GitHub Action or `vercel deploy --prebuilt`, using `VERCEL_TOKEN` and project IDs stored in GitHub Secrets.
+       - **SFTP / Plain Server:** Use an action like `SamKirkland/FTP-Deploy-Action` or `appleboy/scp-action`, providing host, username, and SSH private keys via GitHub Secrets.
+       - The `permissions:` block (`pages: write`, `id-token: write`) would be removed since third-party hosts authenticate via repository secrets rather than GitHub's internal OIDC Pages token.
+
+
 

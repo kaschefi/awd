@@ -504,3 +504,49 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
      3. **Unprotected DOM access:** Revealed multiple spots where DOM container queries were assumed to always succeed, which would crash with unhandled `TypeError` if an element ID changed in an HTML template.
      4. **Unmodeled property mutation:** Unveiled that `ev.bookmarked` was being mutated dynamically onto evidence objects without being part of any documented data contract.
 
+***DEMO 8***
+
+**GitHub Actions CI Workflow Setup (`.github/workflows/ci.yml`):**
+- Configured continuous integration workflow triggered on `push` and `pull_request` to `main`:
+  - **Runner:** `ubuntu-latest`
+  - **Package Manager:** `pnpm@12.4.2` via `pnpm/action-setup@v4`
+  - **Runtime:** `Node.js v22` with automatic pnpm store caching via `actions/setup-node@v4` (`cache: 'pnpm'`)
+  - **Dependency Installation:** `pnpm install --frozen-lockfile` (ensures exact reproducibility from lockfile)
+  - **Verification Steps:**
+    - `pnpm typecheck` (`tsc --noEmit`) — static type verification
+    - `pnpm lint` (`eslint .`) — AST code correctness checks
+    - `pnpm format:check` (`prettier --check "src/**/*.{js,ts,css,html}"`) — visual code formatting enforcement
+
+**Deliberate Failure & Recovery Demonstration:**
+1. Introduced a deliberate lint / formatting error to verify that CI fails properly (red ❌ in GitHub Actions tab).
+2. Inspected the job failure logs in the Actions tab to confirm CI caught the exact error with line numbers.
+3. Corrected the error, pushed the fix, and confirmed the workflow runs to completion with a passing status (green ✔️).
+
+---
+
+**Demo 8 Questions & Answers:**
+
+1. **What is the difference between a workflow, a job, and a step in GitHub Actions? Point to one of each in your workflow file.**
+   - **Workflow:** The top-level automated pipeline configured in a YAML file in `.github/workflows/`. It defines the event triggers and the overall execution boundary.
+     - *In our file:* `name: Development CI` (lines 1–7) triggered `on: push` and `on: pull_request`.
+   - **Job:** A group of sequential steps executed inside an isolated virtual runner instance (e.g., an Ubuntu VM). Multiple jobs in a workflow execute in parallel by default unless dependency chains are defined with `needs:`.
+     - *In our file:* `validate:` under `jobs:` (lines 9–12), running on `runs-on: ubuntu-latest`.
+   - **Step:** An individual executable unit of work inside a job. A step can execute shell commands (`run:`) or execute a pre-packaged community action (`uses:`).
+     - *In our file:* `- name: Run linter` running `run: pnpm lint` (line 33).
+
+2. **Why should lint/format run in CI at all, if it already runs (or could run) on every developer's own machine before they push?**
+   - **Bypassable local tools:** Developers can skip local Git hooks with `git commit --no-verify`, forget to run `pnpm lint`, or disable editor plugins.
+   - **Environment discrepancies:** Local developer environments vary (different OS like Windows vs macOS vs Linux, differing Node.js versions, differing global package managers, or differing line-ending configurations `CRLF` vs `LF`).
+   - **Authoritative Quality Gate:** CI serves as an impartial, standardized, clean-room arbiter. It guarantees that any code merged into `main` adheres to team quality standards, preventing "works on my machine" bugs and avoiding broken builds for teammates.
+
+3. **What is dependency caching doing in your workflow, and what would happen (both correctness- and speed-wise) if you removed it?**
+   - **What dependency caching does:**
+     - In `actions/setup-node@v4` with `cache: 'pnpm'`, GitHub Actions calculates a hash of `pnpm-lock.yaml` and archives pnpm's global content-addressable store (`~/.local/share/pnpm/store`).
+     - On subsequent workflow runs, if `pnpm-lock.yaml` hasn't changed, the store is restored from GitHub's cache archive instead of downloading every package tarball over the public internet from registry.npmjs.org.
+   - **Speed-wise:**
+     - Without caching: Every CI run must perform network requests to download hundreds of package tarballs, adding 30–90+ seconds per run.
+     - With caching: Package files are restored from the local cache in ~1–3 seconds, dramatically speeding up feedback loops.
+   - **Correctness-wise:**
+     - Removing caching would **not** affect correctness. `pnpm install --frozen-lockfile` guarantees that the exact package versions and integrity hashes in `pnpm-lock.yaml` are strictly installed either way. Caching is purely a performance optimization and does not alter the installed dependency tree.
+
+

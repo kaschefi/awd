@@ -178,6 +178,8 @@ async function initApp(): Promise<void> {
   loadNotesFromStorage();
   console.warn("that's a warning");
   console.error('this is an error');
+  // this line will break the action workflow in github because we dont use it anywhere
+  // const deliberateError = 'broken';
 
   // Fixed code smell: use forEach so each callback has its own button reference instead of broken var i
   const navButtons = document.querySelectorAll('.nav-btn');

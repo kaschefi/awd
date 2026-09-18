@@ -171,15 +171,15 @@ ticked. The table above is just a fast overview, tick the boxes inside each demo
 
 **Tasks**
 
-- [ ] Write a GitHub Actions workflow that triggers on push (and/or pull request), checks out the repo, sets up Node.js at the right version, installs dependencies (with dependency caching), and runs your `lint` and a format-check (e.g. `prettier --check`).
-- [ ] Push a commit that deliberately fails lint or format, and show the workflow **failing** in the Actions tab.
-- [ ] Fix it and push again, and show the same workflow **passing**.
+- [x] Write a GitHub Actions workflow that triggers on push (and/or pull request), checks out the repo, sets up Node.js at the right version, installs dependencies (with dependency caching), and runs your `lint` and a format-check (e.g. `prettier --check`).
+- [x] Push a commit that deliberately fails lint or format, and show the workflow **failing** in the Actions tab.
+- [x] Fix it and push again, and show the same workflow **passing**.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What is the difference between a workflow, a job, and a step in GitHub Actions? Point to one of each in your workflow file.
-- [ ] Why should lint/format run in CI at all, if it already runs (or could run) on every developer's own machine before they push?
-- [ ] What is dependency caching doing in your workflow, and what would happen (both correctness- and speed-wise) if you removed it?
+- [x] What is the difference between a workflow, a job, and a step in GitHub Actions? Point to one of each in your workflow file.
+- [x] Why should lint/format run in CI at all, if it already runs (or could run) on every developer's own machine before they push?
+- [x] What is dependency caching doing in your workflow, and what would happen (both correctness- and speed-wise) if you removed it?
 
 ---
 

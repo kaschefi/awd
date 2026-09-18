@@ -518,9 +518,15 @@ Installed `clsx` as a lightweight runtime dependency (`pnpm add clsx`), generati
     - `pnpm format:check` (`prettier --check "src/**/*.{js,ts,css,html}"`) — visual code formatting enforcement
 
 **Deliberate Failure & Recovery Demonstration:**
-1. Introduced a deliberate lint / formatting error to verify that CI fails properly (red ❌ in GitHub Actions tab).
-2. Inspected the job failure logs in the Actions tab to confirm CI caught the exact error with line numbers.
-3. Corrected the error, pushed the fix, and confirmed the workflow runs to completion with a passing status (green ✔️).
+1. **Deliberate Failure (Commit `cb0793d` - *"lets test if the action fails"*):**
+   - Introduced an unused variable in `src/app.ts`: `const deliberateError = 'broken';`.
+   - Pushed to `origin/main`.
+   - In the GitHub Actions tab, the `Development CI` workflow automatically triggered and **failed** with a red ❌ at the `Run linter` (`pnpm lint`) step with exit code 1 (`'deliberateError' is assigned a value but never used`).
+2. **Recovery & Pass (Commit `e1d4c5a` - *"action failed sucessfully lets get back to normal"*):**
+   - Removed/commented out the unused variable in `src/app.ts` and formatted the code.
+   - Pushed to `origin/main`.
+   - In the GitHub Actions tab, the workflow automatically triggered again, successfully ran `typecheck`, `lint`, and `format:check`, and turned **green ✔️** in ~35 seconds.
+3. Both the failed run and the passing run are recorded in the repository's GitHub Actions run history at `https://github.com/kaschefi/awd/actions`.
 
 ---
 

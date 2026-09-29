@@ -24,7 +24,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | # | Demo | Ready? |
 |---|---|---|
 | 1 | Historical view of the web | ☑ |
-| 2 | SSR vs. CSR | ☐ |
+| 2 | SSR vs. CSR | ☑ |
 | 3 | The virtual DOM | ☐ |
 | 4 | SPA vs. MPA: state & routing | ☐ |
 | 5 | React introduction | ☐ |
@@ -56,14 +56,14 @@ ticked — the table above is just a fast overview, tick the boxes inside each d
 
 **Tasks**
 
-- [ ] Present a short comparison table for Server-Side Rendering and Client-Side Rendering. Explain what the server sends on first request, what the browser has to do before the user sees content, and what happens on subsequent navigation.
-- [ ] Pick one real, publicly known website and argue whether it's (primarily) SSR or CSR, using
+- [x] Present a short comparison table for Server-Side Rendering and Client-Side Rendering. Explain what the server sends on first request, what the browser has to do before the user sees content, and what happens on subsequent navigation.
+- [x] Pick one real, publicly known website and argue whether it's (primarily) SSR or CSR, using
 observable evidence (view source, network tab, etc.).
 
 **Questions** (depend on the tasks above)
 
-- [ ] Explain why this exercise application is SSR or CSR and why. Walk through, step by step, what happens between the browser requesting the page and the Dashboard actually being visible.
-- [ ] Name one real cost of what the architecture pays for that choice (think about what a user with JavaScript disabled, or a slow connection, or a search engine crawler would see) and why.
+- [x] Explain why this exercise application is SSR or CSR and why. Walk through, step by step, what happens between the browser requesting the page and the Dashboard actually being visible.
+- [x] Name one real cost of what the architecture pays for that choice (think about what a user with JavaScript disabled, or a slow connection, or a search engine crawler would see) and why.
 
 ---
 

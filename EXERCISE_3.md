@@ -26,7 +26,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | 1 | Historical view of the web | ☑ |
 | 2 | SSR vs. CSR | ☑ |
 | 3 | The virtual DOM | ☑ |
-| 4 | SPA vs. MPA: state & routing | ☐ |
+| 4 | SPA vs. MPA: state & routing | ☑ |
 | 5 | React introduction | ☐ |
 | 6 | React + TypeScript entry point in the Vite project | ☐ |
 | 7 | Component hierarchy for the whole app | ☐ |
@@ -86,14 +86,14 @@ observable evidence (view source, network tab, etc.).
 
 **Tasks**
 
-- [ ] Diagram or illustrate live how navigation currently works in this app: what triggers a view change, what code runs, and what does *not* happen (that would happen in a classic multi-page site).
-- [ ] List every piece of state in the current app that would be lost on a full page reload, versus what's preserved (hint: check what's in `localStorage` versus what's only in memory).
+- [x] Diagram or illustrate live how navigation currently works in this app: what triggers a view change, what code runs, and what does *not* happen (that would happen in a classic multi-page site).
+- [x] List every piece of state in the current app that would be lost on a full page reload, versus what's preserved (hint: check what's in `localStorage` versus what's only in memory).
 
 **Questions** (depend on the tasks above)
 
-- [ ] In a traditional multi-page app, where does "the current page's data" live between requests? Where does it live in this SPA instead, and what are the consequences of that difference (for good and for bad)?
-- [ ] This app currently implements routing by hand (`handleHashChange()`, a `switch`-like chain of `if`s, and manually toggling CSS classes). What is a router library actually responsible for that this hand-rolled version does *not* handle?
-- [ ] If the user hits the browser's back button right now, what happens in this app, and why?
+- [x] In a traditional multi-page app, where does "the current page's data" live between requests? Where does it live in this SPA instead, and what are the consequences of that difference (for good and for bad)?
+- [x] This app currently implements routing by hand (`handleHashChange()`, a `switch`-like chain of `if`s, and manually toggling CSS classes). What is a router library actually responsible for that this hand-rolled version does *not* handle?
+- [x] If the user hits the browser's back button right now, what happens in this app, and why?
 
 ---
 

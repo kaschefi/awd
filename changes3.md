@@ -361,3 +361,138 @@ A virtual-DOM-based approach handles the bookmark toggle through a 4-step reconc
   5. **Broken Reference Equality (Inline Functions and Objects):**
      Passing inline object literals (`style={{ color: 'red' }}`) or inline arrow functions (`onClick={() => ...}`) creates brand new object references on every render. If passed to memoized children (`React.memo`), the child will fail shallow prop equality and re-render unnecessarily every time.
 
+---
+
+## Demo 4 — SPA vs. MPA: state & routing
+
+### Tasks
+
+#### 1. How Navigation Currently Works in this Application
+
+```mermaid
+flowchart TD
+    A["User Interaction<br>(Click nav button, inline link, or Back/Forward)"] --> B["navigateTo('view') sets window.location.hash = view"]
+    B --> C["Browser fires native 'hashchange' event"]
+    C --> D["handleHashChange() in src/app.ts runs"]
+    D --> E["Extract view name from hash (default 'dashboard')"]
+    E --> F["Toggle .active class on Header Nav Buttons"]
+    F --> G["targetRoute.loadHtml()<br>Dynamic import raw HTML snippet"]
+    G --> H["appContainer.innerHTML = htmlModule.default<br>Injects view snippet into DOM"]
+    H --> I["targetRoute.loadModule()<br>Dynamic import view JS/TS module"]
+    I --> J["module.init()<br>Renders data from in-memory state into DOM"]
+```
+
+- **What triggers a view change:**
+  1. Clicking a persistent header navigation button (e.g. `<button onclick="navigateTo('evidence')">`).
+  2. Clicking inline navigation buttons in views (e.g. "View all evidence" on the Dashboard or "Open" in the Workspace).
+  3. Manually typing or editing the hash in the browser address bar (e.g. `#timeline`).
+  4. Pressing the browser's **Back** or **Forward** navigation buttons.
+
+- **What code runs:**
+  1. `navigateTo(viewName)` sets `window.location.hash = viewName`.
+  2. The browser dispatches the native `hashchange` event on `window`.
+  3. `handleHashChange()` in `src/app.ts` is triggered:
+     - Strips `#` and normalizes the view string: `let view = window.location.hash.replace('#', '').trim();`.
+     - Validates against the `routes` dictionary (falling back to `'dashboard'` if invalid).
+     - Updates the in-memory state: `state.currentPage = view`.
+     - Highlights the active navigation button by toggling the `.active` class on `.nav-btn` elements.
+     - Asynchronously fetches the view's HTML snippet using Vite's dynamic raw import: `targetRoute.loadHtml()`.
+     - Replaces `#app`'s contents: `appContainer.innerHTML = htmlModule.default`.
+     - Adds the `.active` class to the injected `<section class="view">`.
+     - Dynamically imports the view's module: `targetRoute.loadModule()`.
+     - Calls `module.init()`, which reads the cached global `state` and binds event listeners/populates DOM elements.
+
+- **What does NOT happen (that would happen in a classic multi-page site):**
+  - **No HTTP request to the web server:** The browser does not issue an HTTP GET request for a new document. The server is completely unaware that navigation occurred.
+  - **No document unloading or white flash:** The browser does not destroy the window, DOM tree, or global JavaScript scope.
+  - **No header/footer re-parsing:** The persistent header (`.app-header`), footer (`.app-footer`), and base styles remain untouched in the DOM.
+  - **No re-fetching of JSON data:** The datasets loaded at startup (`allEvidence`, `allPeople`, `allLocations`, `allTimeline`, `caseData`) stay resident in memory in `src/state.ts`. The browser does not re-download them across the network.
+  - **No re-downloading of CSS or JS bundles:** The browser does not re-parse stylesheets or re-evaluate core application code.
+
+---
+
+#### 2. State Preservation Matrix (Full Page Reload vs. Preserved)
+
+| State Item | Storage Location | Preserved on Full Page Reload? | Notes / Explanation |
+|---|---|:---:|---|
+| **Bookmarks** (`state.bookmarks`) | `localStorage` (`remotion_bookmarks`) | **YES** | Loaded during `initApp()` via `loadBookmarksFromStorage()`. |
+| **Evidence Notes** (`state.notesStore`) | `localStorage` (`remotion_notes`) | **YES** | Dictionary mapping `evidenceId -> noteText` loaded via `loadNotesFromStorage()`. |
+| **Hypothesis Saved Draft** | `localStorage` (`remotion_hypothesis`) | **YES** | Contains saved suspect ID, nature, selected evidence IDs, confidence score, and explanation. Loaded on Workspace visit via `loadHypothesisFromStorage()`. |
+| **Current Route View** | URL Fragment (`window.location.hash`) | **YES** | The URL hash (e.g. `localhost:5173/#evidence`) persists in the browser address bar; on reload, `handleHashChange()` reads it and routes directly to that view. |
+| **Evidence Filter Inputs** | In-Memory DOM / Local scope | **NO** | Active text search query, dropdown filters (Type, Person, Location, Status, Relevance), and Sort order reset to default values (`""`, `"newest"`). |
+| **Filtered Evidence Array** (`state.filteredEvidence`) | In-Memory (`src/state.ts`) | **NO** | Discarded from RAM; recomputed on next evidence view render. |
+| **Selected Evidence / Open Modals** (`state.selectedEvidence`) | In-Memory (`src/state.ts`) | **NO** | Any open modal (Evidence detail, Timeline event modal, Person/Location modal) closes immediately. |
+| **People vs. Locations Active Tab** (`state.currentPeopleTab`) | In-Memory (`src/state.ts`) | **NO** | Resets back to default `'people'`. |
+| **Unsaved Workspace Draft Inputs** | In-Memory DOM form inputs | **NO** | Text typed into the hypothesis fields that was not saved via the "Save Hypothesis" button is permanently lost. |
+| **Runtime Loading Flags & Counters** (`loadingStepsRemaining`, `evidenceViewLoading`, `modalCloseListenerCount`) | In-Memory (`src/state.ts`) | **NO** | Reset to initial startup values; initial loading sequence re-runs. |
+| **Loaded Case Data & Datasets** (`caseData`, `allEvidence`, `allPeople`, `allLocations`, `allTimeline`) | In-Memory Heap (`src/state.ts`) | **NO** | RAM is wiped; all JSON files must be re-fetched over the network during bootstrap. |
+| **UI Scroll Positions** | Browser Viewport / Containers | **NO** | Resets to the top of the page. |
+
+---
+
+### Questions
+
+#### 1. In a traditional multi-page app, where does "the current page's data" live between requests? Where does it live in this SPA instead, and what are the consequences of that difference (for good and for bad)?
+
+- **Where data lives between requests:**
+  - **Traditional Multi-Page App (MPA):**
+    The client browser holds **no continuous state** between page navigations. Between requests, the data lives on the **server** (in databases, backend sessions, or server memory caches). The client only holds lightweight identifiers (session cookies or URL query parameters). On each navigation, the browser destroys its entire memory space, and the server reconstructs the view from scratch.
+  - **Single-Page App (this SPA):**
+    Data lives directly in **client browser RAM** (specifically inside the JavaScript engine's heap: the global `state` object exported by `src/state.ts`), supplemented by browser `localStorage` for explicit persistence.
+
+- **Consequences of this difference:**
+  - **The Good (Benefits):**
+    1. **Instantaneous Navigation:** Switching from Evidence to Dashboard requires zero network round trips to fetch data. The numbers and cards are calculated immediately from in-memory objects.
+    2. **Offline & Network Resilience:** Once the initial data bootstrap completes, the user can filter evidence, view timelines, and inspect people even if their internet connection drops entirely.
+    3. **Cross-View State Sharing:** Views can effortlessly coordinate. When a user bookmarks an evidence item in the Evidence view, the Workspace and Dashboard reflect this immediately without coordinating through a server.
+    4. **Reduced Server Infrastructure Load:** The server does not maintain user sessions or execute heavy database queries for every view change.
+  - **The Bad (Drawbacks & Risks):**
+    1. **Stale Data / Data Drift:** If data changes on the server (e.g. another investigator adds evidence), the SPA continues displaying outdated data from RAM indefinitely unless active polling, WebSockets, or revalidation is built.
+    2. **Memory Leaks & Bloat:** Long-lived client-side applications accumulate memory if event listeners or DOM references are not cleaned up (e.g. the repeated click listener bug on `#evidenceList`).
+    3. **State Loss on Accidental Reload:** Any in-memory state (filter settings, scroll position, modal state) is wiped clean on reload unless specifically synchronized to the URL or storage.
+
+---
+
+#### 2. This app currently implements routing by hand (`handleHashChange()`, a `switch`-like chain of `if`s, and manually toggling CSS classes). What is a router library actually responsible for that this hand-rolled version does *not* handle?
+
+A professional router library (such as React Router, TanStack Router, or Vue Router) provides several critical production capabilities that this hand-rolled hash implementation lacks:
+
+1. **Dynamic Route Parameters (`:id`):**
+   A router matches URL patterns with variables (e.g. `#/evidence/:evidenceId` or `#/people/:personId`). Currently, opening an evidence detail card only updates an in-memory variable (`selectedEvidence`) and opens a modal—meaning you cannot bookmark or share a direct URL link to a specific evidence item!
+2. **Query Parameter Management & URL Synchronization:**
+   A router parses, serializes, and synchronizes search/filter parameters with the URL (e.g. `#/evidence?search=drone&status=reviewed&sort=newest`). In the current app, filters live exclusively in transient DOM inputs and are lost on navigation.
+3. **Nested & Layout Routing:**
+   A router allows child routes to render inside parent layouts without re-rendering or wiping out the parent container. In this app, navigating destroys `#app.innerHTML` entirely.
+4. **Navigation Guards & Lifecycle Hooks:**
+   Routers support hooks like `beforeEach` / `canDeactivate` to intercept navigation (e.g. warning the user: *"You have unsaved changes in your hypothesis draft. Are you sure you want to leave?"*). The current app has no way to block navigation.
+5. **Modern HTML5 History API (`pushState`/`replaceState`):**
+   Real routers support clean URLs (`/evidence` instead of `/#evidence`) without page reloads, while falling back gracefully.
+6. **Code-Splitting, Lazy Loading & Loading Skeletons:**
+   Modern routers integrate with build tools to automatically bundle, pre-fetch, and lazy-load route chunks, rendering suspense fallbacks while routes load.
+7. **Scroll Restoration:**
+   Routers automatically remember and restore the exact scroll position when users navigate back and forward through their history.
+8. **Accessibility (a11y) & Focus Management:**
+   When a client-side route changes, routers update document titles and announce route changes to screen readers via ARIA live regions, focusing the new main heading for keyboard users.
+
+---
+
+#### 3. If the user hits the browser's back button right now, what happens in this app, and why?
+
+- **What happens:**
+  - The browser's active URL updates to the previous hash in the session history (for example, navigating from `http://localhost:5173/#timeline` back to `http://localhost:5173/#evidence`).
+  - The browser fires the native `hashchange` event on the `window` object.
+  - The `handleHashChange()` listener in `src/app.ts` executes automatically.
+  - It extracts the previous view name (`'evidence'`), updates `state.currentPage = 'evidence'`, highlights the "Evidence" button in the header nav, dynamically imports `pages/evidence/index.html` and `pages/evidence/script.ts`, and renders the evidence view.
+  - To the user, it successfully "navigates back" to the previous page.
+
+- **Why it works:**
+  - Every time `window.location.hash = viewName` is called (or an `<a href="#evidence">` is clicked), the browser treats the hash change as a new entry in its internal navigation history stack.
+  - Clicking the **Back** button tells the browser to pop the current history entry and restore the previous URL. Because the URL change is limited to the hash fragment, the browser does not make a network request; instead, it dispatches the native `hashchange` event, which our listener is registered to handle.
+
+- **The Big Catch / Current Limitations:**
+  - The back button **only tracks top-level page views**, not user interactions within a view:
+    1. If the user opens an evidence detail modal and clicks "Back" expecting the modal to close, the app instead navigates away to whatever previous page they were on!
+    2. If the user switched tabs in People & Locations (from People to Locations), clicking "Back" does not switch back to the People tab; it navigates to the previous page because sub-tabs do not update the URL hash.
+    3. Any search queries or filter selections applied before navigating away are completely wiped out upon returning via the back button.
+
+

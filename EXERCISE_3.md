@@ -25,7 +25,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 |---|---|---|
 | 1 | Historical view of the web | ☑ |
 | 2 | SSR vs. CSR | ☑ |
-| 3 | The virtual DOM | ☐ |
+| 3 | The virtual DOM | ☑ |
 | 4 | SPA vs. MPA: state & routing | ☐ |
 | 5 | React introduction | ☐ |
 | 6 | React + TypeScript entry point in the Vite project | ☐ |
@@ -71,14 +71,14 @@ observable evidence (view source, network tab, etc.).
 
 **Tasks**
 
-- [ ] In your own words (a few sentences, not a copied definition), explain what the virtual DOM is and what problem it solves.
-- [ ] Find one concrete example in the *original* vanilla `app.js` (from before Exercise 1) where a small state change (e.g. toggling one bookmark) caused a large chunk of real DOM to be recreated via `innerHTML`, even though only a tiny part of it actually needed to change.
+- [x] In your own words (a few sentences, not a copied definition), explain what the virtual DOM is and what problem it solves.
+- [x] Find one concrete example in the *original* vanilla `app.js` (from before Exercise 1) where a small state change (e.g. toggling one bookmark) caused a large chunk of real DOM to be recreated via `innerHTML`, even though only a tiny part of it actually needed to change.
 
 **Questions** (depend on the tasks above)
 
-- [ ] Using the example you found: how would a virtual-DOM-based approach (conceptually, not necessarily React-specific) avoid recreating the parts that didn't change?
-- [ ] Is the virtual DOM a "faster" way to update the real DOM than directly calling `innerHTML`? Explain precisely what's actually being traded off (think about the diffing work itself).
-- [ ] Does using a virtual DOM library automatically make your app fast? What could still make a React app slow despite it?
+- [x] Using the example you found: how would a virtual-DOM-based approach (conceptually, not necessarily React-specific) avoid recreating the parts that didn't change?
+- [x] Is the virtual DOM a "faster" way to update the real DOM than directly calling `innerHTML`? Explain precisely what's actually being traded off (think about the diffing work itself).
+- [x] Does using a virtual DOM library automatically make your app fast? What could still make a React app slow despite it?
 
 ---
 

@@ -199,3 +199,165 @@ To demonstrate SSR vs. CSR live, we can examine two well-known production websit
      - When they scrape the URL, they only see `<main id="app"></main>`. They see no metadata, no case description, and no relevant keywords, severely harming search visibility and social sharing.
   3. **Client Device CPU & Battery Consumption:**
      - All data aggregation (filtering evidence, calculating progress percentages, building DOM nodes via string concatenation) is offloaded to the client's device. On low-end mobile devices, this causes UI jank, thread freezing, and battery drain.
+
+---
+
+## Demo 3 — The virtual DOM
+
+### Tasks
+
+#### 1. Explanation of the Virtual DOM and the Problem It Solves
+The **Virtual DOM (VDOM)** is a lightweight, in-memory tree of plain JavaScript objects that mirrors the structure of the browser's real DOM. Each virtual node contains metadata describing an element (its tag, props, event listeners, and children).
+
+**The Problem It Solves:**
+In complex user interfaces, keeping the real DOM in sync with changing application data is hard:
+- Directly writing fine-grained, imperative DOM mutations (`document.getElementById()`, `classList.toggle()`, `textContent = ...`) for every tiny state change is tedious, error-prone, and leads to messy, fragile code.
+- To avoid that boilerplate, developers often resort to coarse-grained updates using `innerHTML = newHTML`. But `innerHTML` is a blunt instrument: it destroys the entire existing DOM subtree, forces the browser to re-parse HTML, reconstruct brand new DOM elements, and recalculate layout and styles—wiping out user text selection, input focus, and scroll position in the process.
+
+The Virtual DOM solves this by providing a **declarative programming model**: developers write components as if the entire UI re-renders on every state update (`UI = f(state)`). Behind the scenes, the Virtual DOM engine compares the previous virtual tree with the new one (**diffing**) and computes the absolute minimal set of targeted mutations required to update the real DOM (**reconciliation / patching**).
+
+---
+
+#### 2. Concrete Example in the Original Vanilla `app.js`
+
+In the original `app.js` (from before Exercise 1), a clear example of this problem occurs in the evidence list bookmarking functionality:
+
+- **Location:** `app.js`, lines 434–450 (`handleBookmarkClick`) and lines 369–394 (`renderEvidenceList`):
+
+```javascript
+// app.js (Lines 434–450)
+function handleBookmarkClick(evidenceId) {
+  var ev = findEvidenceById(evidenceId);
+  if (!ev) return;
+
+  if (bookmarks.indexOf(evidenceId) === -1) {
+    bookmarks.push(evidenceId);
+    ev.bookmarked = true;
+  } else {
+    bookmarks = bookmarks.filter(function (id) {
+      return id !== evidenceId;
+    });
+    ev.bookmarked = false;
+  }
+  saveBookmarksToStorage();
+  if (currentPage === "evidence") renderEvidenceList();
+}
+```
+
+- **What happens inside `renderEvidenceList()` (Lines 369–394):**
+```javascript
+function renderEvidenceList() {
+  var container = document.getElementById("evidenceList");
+  if (!container) return;
+  ...
+  var results = getFilteredEvidence();
+
+  var html = "";
+  if (results.length === 0) {
+    html = "<p>No evidence matches the current filters.</p>";
+  }
+  for (var i = 0; i < results.length; i++) {
+    html += renderEvidenceCardHTML(results[i]);
+  }
+  container.innerHTML = html; // <-- Entire DOM subtree wiped out here!
+
+  // Event delegation for card clicks / bookmark button.
+  container.addEventListener("click", handleEvidenceListClick);
+}
+```
+
+- **The Issue:**
+  - When the user clicks the bookmark button on a single evidence card (e.g. card `E01`), only **one tiny thing actually changed**: that button's class needed to toggle between `""` and `"active"`, and its icon changed from `"☆"` to `"★"`.
+  - However, `handleBookmarkClick()` called `renderEvidenceList()`.
+  - `renderEvidenceList()` looped over every single card in the dataset, regenerated HTML strings for every card via `renderEvidenceCardHTML()`, and assigned `container.innerHTML = html`.
+  - The browser had to tear down and destroy dozens of existing DOM card elements, parse a large HTML string, create dozens of brand new DOM elements, and perform a full layout reflow and repaint.
+  - Furthermore, on line 393, a brand new `click` event listener was attached to `container` on every single bookmark click, introducing a classic event listener leak.
+
+---
+
+### Questions
+
+#### 1. Using the example you found: how would a virtual-DOM-based approach avoid recreating the parts that didn't change?
+
+A virtual-DOM-based approach handles the bookmark toggle through a 4-step reconciliation process:
+
+1. **Initial Virtual Tree ($V_1$):**
+   When the evidence list is rendered, the VDOM engine holds an in-memory tree of JavaScript objects representing the cards:
+   ```javascript
+   {
+     type: 'div',
+     props: { id: 'evidenceList' },
+     children: [
+       {
+         type: 'div',
+         key: 'E01',
+         props: { className: 'evidence-card' },
+         children: [
+           { type: 'button', props: { className: 'bookmark-btn' }, children: ['☆'] },
+           { type: 'h3', children: ['Initial System Diagnostics Log'] },
+           ...
+         ]
+       },
+       { type: 'div', key: 'E02', ... }
+     ]
+   }
+   ```
+2. **State Mutation & New Virtual Tree ($V_2$):**
+   The user clicks bookmark on `E01`. State updates (`bookmarked: true`). React re-runs the component render function, producing a new virtual tree $V_2$ in memory.
+3. **Diffing / Reconciliation:**
+   The diffing algorithm compares $V_1$ and $V_2$ node by node (using `key` attributes to match list items):
+   - For cards `E02`, `E03`, etc., the virtual nodes and their props are identical $\rightarrow$ **Zero DOM operations**.
+   - For card `E01`, the title, summary, meta tags, and badges are identical $\rightarrow$ **Zero DOM operations**.
+   - The diff algorithm isolates the exact difference: inside the button child of `E01`:
+     - `props.className` changed from `'bookmark-btn'` to `'bookmark-btn active'`.
+     - Text child changed from `'☆'` to `'★'`.
+4. **Targeted Real DOM Patch:**
+   Instead of touching `innerHTML`, the engine executes only two precise, surgical DOM operations:
+   ```javascript
+   buttonDOMElement.className = 'bookmark-btn active';
+   textDOMNode.nodeValue = '★';
+   ```
+   All existing card DOM nodes, event listeners, input focus, and scroll position remain completely untouched.
+
+---
+
+#### 2. Is the virtual DOM a "faster" way to update the real DOM than directly calling `innerHTML`? Explain precisely what's actually being traded off.
+
+- **Is it strictly "faster"?**
+  **No.** The Virtual DOM is not inherently faster than raw direct DOM updates, and calling `innerHTML` in raw C++ browser code can be faster in pure millisecond execution time than constructing and diffing thousands of JavaScript objects.
+  In fact, the absolute fastest possible update is handcrafted, fine-grained vanilla DOM manipulation:
+  ```javascript
+  btn.classList.toggle('active');
+  btn.textContent = '★';
+  ```
+  This touches only what changed with zero VDOM overhead and zero object allocation.
+
+- **What is actually being traded off:**
+  1. **Developer Ergonomics (Declarative vs. Imperative) vs. CPU Diffing Work:**
+     - In an imperative model, developers must manually track which specific DOM node to mutate whenever any state changes. In complex apps with dozens of interdependent UI elements, this becomes an unmaintainable nightmare.
+     - The Virtual DOM allows developers to write **declarative code**—simply describing what the UI should look like for any given state (`UI = f(state)`).
+     - The trade-off is that the client CPU spends a small amount of memory and execution time creating virtual nodes and diffing trees in JavaScript.
+  2. **JavaScript Execution Time vs. Browser Layout/Paint Cost:**
+     - JavaScript execution and object comparison in V8 is extremely fast (fractions of a millisecond).
+     - Browser DOM destruction, HTML string parsing, element construction, style recalculation, layout reflow, and repaint are orders of magnitude slower and cause frame drops and UI stutter.
+     - By spending a few microseconds in JavaScript to diff trees, the VDOM prevents the browser from paying the catastrophic rendering penalty of coarse `innerHTML` updates.
+
+---
+
+#### 3. Does using a virtual DOM library automatically make your app fast? What could still make a React app slow despite it?
+
+- **Does it make your app automatically fast?**
+  **No.** The Virtual DOM is an abstraction that guarantees a solid performance baseline by avoiding naive full-DOM destructions, but poor application architecture can easily degrade performance.
+
+- **What could still make a React app slow despite the Virtual DOM:**
+  1. **Cascading Unnecessary Re-renders:**
+     By default in React, when a parent component's state changes, **every child and descendant in that component's tree re-renders recursively**. Even if the diffing algorithm ultimately finds zero DOM changes to apply, the CPU still had to execute dozens or hundreds of component functions and build huge virtual trees in memory on every interaction.
+  2. **Heavy Computations in the Render Body:**
+     Running synchronous heavy operations (e.g. sorting a 10,000-item array, complex regex filtering, or deep object cloning) directly inside the component body blocks the browser main thread, causing noticeable input lag and dropped frames (unless wrapped in `useMemo` or moved to Web Workers).
+  3. **Missing, Inefficient, or Unstable `key` Props in Lists:**
+     Using array indexes (`key={index}`) or random numbers (`key={Math.random()}`) when rendering lists breaks React's reconciliation. If an item is inserted, deleted, or sorted, React fails to match elements across renders and destroys/re-creates every DOM node in the list anyway, completely negating the VDOM's benefits.
+  4. **Un-virtualized Massive DOM Subtrees:**
+     If a component renders 5,000 table rows or cards at once, creating 5,000 virtual nodes and mounting 50,000 real DOM nodes will overwhelm the browser's layout engine and consume massive RAM. The VDOM cannot fix having too many real DOM nodes on the page; windowing/virtual scrolling (e.g. `react-window`) is required.
+  5. **Broken Reference Equality (Inline Functions and Objects):**
+     Passing inline object literals (`style={{ color: 'red' }}`) or inline arrow functions (`onClick={() => ...}`) creates brand new object references on every render. If passed to memoized children (`React.memo`), the child will fail shallow prop equality and re-render unnecessarily every time.
+

@@ -23,7 +23,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 
 | # | Demo | Ready? |
 |---|---|---|
-| 1 | Historical view of the web | ☐ |
+| 1 | Historical view of the web | ☑ |
 | 2 | SSR vs. CSR | ☐ |
 | 3 | The virtual DOM | ☐ |
 | 4 | SPA vs. MPA: state & routing | ☐ |
@@ -43,12 +43,12 @@ ticked — the table above is just a fast overview, tick the boxes inside each d
 
 **Tasks**
 
-- [ ] Give a concise explanation of how web applications evolved over the years and place the app from the exercises on the timeline. Justify where you put it.
+- [x] Give a concise explanation of how web applications evolved over the years and place the app from the exercises on the timeline. Justify where you put it.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What specific problem was AJAX (and libraries like jQuery) solving that plain server-rendered pages couldn't? What new problems did that approach introduce, that SPA frameworks then tried to solve?
-- [ ] This app currently uses hash-based routing (`#dashboard`, `#evidence`, ...) with no full page reload between views. Which era does that pattern belong to, and what does it tell you about when this architectural choice became common?
+- [x] What specific problem was AJAX (and libraries like jQuery) solving that plain server-rendered pages couldn't? What new problems did that approach introduce, that SPA frameworks then tried to solve?
+- [x] This app currently uses hash-based routing (`#dashboard`, `#evidence`, ...) with no full page reload between views. Which era does that pattern belong to, and what does it tell you about when this architectural choice became common?
 
 ---
 

@@ -28,7 +28,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | 3 | The virtual DOM | ☑ |
 | 4 | SPA vs. MPA: state & routing | ☑ |
 | 5 | React introduction | ☑ |
-| 6 | React + TypeScript entry point in the Vite project | ☐ |
+| 6 | React + TypeScript entry point in the Vite project | ☑ |
 | 7 | Component hierarchy for the whole app | ☐ |
 | 8 | Architecture Decision Record: why SPA/React | ☐ |
 | 9 | Migrate the application shell | ☐ |
@@ -117,16 +117,16 @@ component's function body had a side effect (e.g. mutated a global variable) eve
 
 **Tasks**
 
-- [ ] Add React and TypeScript support to the existing Vite project from Exercise 2 (the right Vite plugin, `tsx` support, React types).
-- [ ] Create a minimal entry point (e.g. a root `<App />` component mounted into the page) that
+- [x] Add React and TypeScript support to the existing Vite project from Exercise 2 (the right Vite plugin, `tsx` support, React types).
+- [x] Create a minimal entry point (e.g. a root `<App />` component mounted into the page) that
 renders *something* visible, without removing the working vanilla app yet.
-- [ ] Decide and document how the two versions coexist during the migration (e.g. a separate route/ flag to view the React version, or a full swap-over. Your call, but be ready to justify it).
+- [x] Decide and document how the two versions coexist during the migration (e.g. a separate route/ flag to view the React version, or a full swap-over. Your call, but be ready to justify it).
 
 **Questions** (depend on the tasks above)
 
-- [ ] What did you actually have to install and configure to get JSX compiling through Vite? What is each piece responsible for?
-- [ ] How does your `<App />` component get from source code onto the actual page? Trace the path from your `.tsx` file to the DOM.
-- [ ] What decision did you make about how the vanilla and React versions coexist during migration, and why? What would go wrong with an opposite choice?
+- [x] What did you actually have to install and configure to get JSX compiling through Vite? What is each piece responsible for?
+- [x] How does your `<App />` component get from source code onto the actual page? Trace the path from your `.tsx` file to the DOM.
+- [x] What decision did you make about how the vanilla and React versions coexist during migration, and why? What would go wrong with an opposite choice?
 
 ---
 

@@ -6,6 +6,7 @@
     <title>Project ReMotion &ndash; Investigation Portal</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
+
   <body>
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay">
@@ -61,12 +62,24 @@
           >
             Workspace
           </button>
+          <button
+            type="button"
+            class="nav-btn"
+            data-view="react"
+            onclick="navigateTo('react')"
+            style="border: 1px dashed var(--color-accent); color: var(--color-accent)"
+          >
+            React Preview
+          </button>
         </nav>
       </div>
     </header>
 
-    <!-- Page Swap Container -->
+    <!-- Page Swap Container (Vanilla) -->
     <main id="app" class="app-main"></main>
+
+    <!-- React Migration Root Container -->
+    <div id="react-root" class="app-main hidden"></div>
 
     <!-- Persistent Footer -->
     <footer class="app-footer">
@@ -77,5 +90,6 @@
     </footer>
 
     <script type="module" src="app.ts"></script>
+    <script type="module" src="main.tsx"></script>
   </body>
 </html>

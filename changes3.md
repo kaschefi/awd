@@ -610,5 +610,165 @@ root.render(<CaseSummary />);
      - Side effects (such as fetching data, writing to `localStorage`, setting timers, or manually mutating the real DOM) must **never** run naked in the render function body.
      - They must be isolated inside **event handlers** (e.g. `onClick`, `onSubmit`) or managed lifecycle hooks (**`useEffect`**), which React guarantees will run only after the DOM has been safely updated.
 
+---
+
+## Demo 6 — React + TypeScript entry point in the Vite project
+
+### Tasks
+
+#### 1. Adding React and TypeScript Support to the Vite Project
+To enable native React and TypeScript JSX/TSX compilation, we performed the following:
+
+1. **Installed Runtime Dependencies:**
+   ```bash
+   pnpm add react react-dom
+   ```
+   - Installed `react 19.3.0` and `react-dom 19.3.0`.
+2. **Installed Development Tooling & Types:**
+   ```bash
+   pnpm add -D @types/react @types/react-dom @vitejs/plugin-react
+   ```
+   - Added TypeScript declarations for React and DOM types.
+   - Installed `@vitejs/plugin-react 6.1.1` (the official Vite plugin providing Fast Refresh and JSX transformation).
+3. **Configured `vite.config.js`:**
+   - Imported `react from '@vitejs/plugin-react'` and registered it in the `plugins` array:
+   ```javascript
+   import { defineConfig } from 'vite';
+   import react from '@vitejs/plugin-react';
+
+   export default defineConfig({
+     plugins: [react()],
+     base: './',
+     root: 'src',
+     publicDir: '../public',
+     build: {
+       outDir: '../dist',
+       emptyOutDir: true,
+     },
+   });
+   ```
+4. **Configured `tsconfig.json`:**
+   - Added `"jsx": "react-jsx"` to `compilerOptions`. This instructs TypeScript to recognize JSX/TSX syntax and emit modern React 17+ JSX runtime imports automatically (`react/jsx-runtime`).
+
+---
+
+#### 2. Creating a Minimal Entry Point (`App` Component Mounted into `#react-root`)
+
+1. **Created Root Component (`src/ReactApp.tsx`):**
+   - Implemented a clean, interactive React root component with interactive state (`useState` count button):
+   ```tsx
+   import React, { useState } from 'react';
+
+   export const App: React.FC = () => {
+     const [count, setCount] = useState<number>(0);
+
+     return (
+       <div style={{ maxWidth: '800px', margin: '2rem auto', padding: '0 1rem' }}>
+         <div className="card" style={{ background: '#ffffff', borderRadius: '8px', padding: '2rem', boxShadow: 'var(--shadow)' }}>
+           <h2>⚛️ React + TypeScript Entry Point</h2>
+           <p>Compiled via Vite and TypeScript and mounted into #react-root.</p>
+           <button type="button" className="btn btn-primary" onClick={() => setCount(prev => prev + 1)}>
+             Interactive React State: Clicked {count} times
+           </button>
+           <button type="button" className="btn btn-secondary" onClick={() => { window.location.hash = 'dashboard'; }}>
+             &larr; Return to Vanilla Dashboard
+           </button>
+         </div>
+       </div>
+     );
+   };
+   export default App;
+   ```
+2. **Created Application Mounting Entry Point (`src/main.tsx`):**
+   - Connects the React component tree to the real DOM container:
+   ```tsx
+   import React from 'react';
+   import ReactDOM from 'react-dom/client';
+   import { App } from './ReactApp';
+
+   const container = document.getElementById('react-root');
+   if (container) {
+     const root = ReactDOM.createRoot(container);
+     root.render(
+       <React.StrictMode>
+         <App />
+       </React.StrictMode>
+     );
+   }
+   ```
+3. **Updated `src/index.html`:**
+   - Added the dedicated container `<div id="react-root" class="app-main hidden"></div>` alongside the vanilla `<main id="app">`.
+   - Added `<script type="module" src="main.tsx"></script>` so React initializes on page load.
+   - Added a dedicated nav button `<button class="nav-btn" data-view="react" onclick="navigateTo('react')">⚛️ React Preview</button>` in the persistent header.
+
+---
+
+#### 3. Coexistence Strategy During Migration
+
+- **Decision: Dual-Mount Route-Toggled Container Coexistence**
+  - Rather than wiping out the vanilla application in a single disruptive change, we run both applications within the same Vite project simultaneously.
+  - In `src/app.ts`, `handleHashChange()` manages visibility:
+    - On root URL load (or when `#react` is visited), `app.ts` adds `.hidden` to the vanilla `#app` container and removes `.hidden` from the `#react-root` container, displaying **only** the React component card.
+    - When the user clicks "Return to Vanilla Dashboard" (or navigates to `#dashboard`, `#evidence`, `#people`, `#timeline`, `#workspace`), `app.ts` hides `#react-root` and unhides `#app`, seamlessly restoring the vanilla views without both appearing simultaneously.
+  - **Justification:**
+    - Allows safe, zero-downtime, incremental migration.
+    - The existing, fully-featured vanilla app remains 100% operational for regression testing, side-by-side comparison, and class evaluation while subsequent demos migrate individual views.
+
+---
+
+### Questions
+
+#### 1. What did you actually have to install and configure to get JSX compiling through Vite? What is each piece responsible for?
+
+- **Packages Installed:**
+  1. `react`: Core React library. Responsible for component definition APIs, the Virtual DOM data structures, and React Hooks (`useState`, `useEffect`).
+  2. `react-dom`: The browser-specific DOM renderer. Responsible for creating the root (`ReactDOM.createRoot`), mounting components to native browser DOM nodes, and reconciling the Virtual DOM with the real DOM.
+  3. `@types/react` & `@types/react-dom`: TypeScript type declarations. Responsible for type-checking JSX tags, props, synthetic events, and React APIs during `tsc --noEmit`.
+  4. `@vitejs/plugin-react`: The official Vite plugin. Responsible for configuring esbuild and Babel to compile JSX/TSX syntax down to JavaScript, enabling Hot Module Replacement (Fast Refresh) so components update instantly without full reloads, and injecting the modern JSX runtime.
+- **Configurations Made:**
+  1. `vite.config.js`: Registered `react()` in `plugins: [react()]` to activate the Vite React transform pipeline.
+  2. `tsconfig.json`: Added `"jsx": "react-jsx"` to `compilerOptions` so TypeScript understands JSX without requiring an explicit `import React from 'react'` at the top of every file.
+
+---
+
+#### 2. How does your `<App />` component get from source code onto the actual page? Trace the path from your `.tsx` file to the DOM.
+
+1. **Authoring (`src/ReactApp.tsx`):**
+   - The developer authors `<App />` as a TypeScript function returning JSX markup.
+2. **Compilation & Bundling (Vite + esbuild/Babel):**
+   - When Vite serves or builds the project, `@vitejs/plugin-react` processes `ReactApp.tsx`.
+   - It strips TypeScript annotations and converts JSX syntax into standard JavaScript function calls:
+     `_jsx('div', { children: [ _jsx('h2', { children: 'React Entry Point' }), ... ] })`.
+3. **Module Loading (`src/main.tsx`):**
+   - The browser parses `index.html` and requests the module `<script type="module" src="main.tsx"></script>`.
+   - `main.tsx` dynamically executes, importing `App` from `ReactApp.tsx`.
+4. **Root Attachment (`ReactDOM.createRoot`):**
+   - `main.tsx` executes `document.getElementById('react-root')` to obtain the reference to the empty placeholder container in `index.html`.
+   - It initializes a React root: `const root = ReactDOM.createRoot(container)`.
+5. **Reconciliation & Real DOM Generation:**
+   - React invokes the `<App />` function component, receiving the Virtual DOM tree.
+   - React's reconciler converts these virtual objects into real DOM elements using native browser APIs (`document.createElement('div')`, `document.createElement('button')`, `addEventListener('click', ...)`).
+   - It appends the constructed element hierarchy into `#react-root`.
+6. **Route Visibility (`handleHashChange` in `src/app.ts`):**
+   - When the user navigates to `#react`, `handleHashChange()` unhides `#react-root` (`classList.remove('hidden')`) and hides `#app`. The interactive React component becomes visible to the user.
+
+---
+
+#### 3. What decision did you make about how the vanilla and React versions coexist during migration, and why? What would go wrong with an opposite choice?
+
+- **The Decision Made:**
+  - We implemented a **Dual-Mount / Route-Toggled Container Coexistence** architecture.
+  - The vanilla app mounts into `<main id="app">` and the React app mounts into `<div id="react-root">`.
+  - The hash router coordinates which container is visible based on the URL hash (`#react` vs. `#dashboard`).
+- **Why this was chosen:**
+  1. **Risk Mitigation:** It allows progressive, incremental migration of views without breaking existing functionality.
+  2. **Live Side-by-Side Comparison:** Evaluators, users, and developers can seamlessly switch between the working vanilla implementation and the React prototype to verify visual and behavioral fidelity.
+  3. **Continuous Deployment Safety:** The app remains in a permanently buildable, deployable state across all CI/CD pipelines.
+- **What would go wrong with an opposite choice (e.g. an immediate "Big Bang" full swap-over):**
+  1. **Complete Application Breakdown:** If we immediately deleted `app.ts` and replaced `#app` with React in Demo 6, 80% of the portal (Evidence filtering, People directory, Interactive Timeline, and Hypothesis Workspace) would cease to exist because they aren't migrated to React until later exercises!
+  2. **High Regression Risk:** Migrating everything at once prevents isolated testing and makes debugging root causes nearly impossible.
+  3. **All-or-Nothing Delivery:** If a bug occurs during migration, the entire project is blocked from shipping or being demonstrated.
+
+
 
 

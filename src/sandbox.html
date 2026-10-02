@@ -1,57 +1,55 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demo 5 — React Throwaway Sandbox</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <!-- React & ReactDOM (UMD) + Babel standalone for in-browser JSX compilation -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body {
+        background-color: #ffffff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      }
+    </style>
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Demo 5 — React Throwaway Sandbox</title>
-  <link rel="stylesheet" href="./styles.css" />
-  <!-- React & ReactDOM (UMD) + Babel standalone for in-browser JSX compilation -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    body {
-      background-color: #ffffff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-    }
-  </style>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script type="text/babel">
+      // Demo 5 Component created with the user:
+      function CaseSummary() {
+        const str = 'Active Lead';
 
-  <script type="text/babel">
-    // Our Demo 5 Component created with the user:
-    function CaseSummary() {
-      const str = 'Active Lead';
+        return (
+          <div className="sandbox-container">
+            <div className="sandbox-tag">React Sandbox &bull; Demo 5</div>
+            <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '1.4rem', color: '#16233b' }}>
+              Project ReMotion
+            </h1>
+            <p style={{ margin: '0 0 1rem 0', color: '#5b6472', fontSize: '0.95rem' }}>
+              Investigation in progress...
+            </p>
+            <span className="badge badge-flagged" style={{ fontSize: '0.85rem' }}>
+              {str}
+            </span>
+          </div>
+        );
+      }
 
-      return (
-        <div className="sandbox-container">
-          <div className="sandbox-tag">React Sandbox &bull; Demo 5</div>
-          <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '1.4rem', color: '#16233b' }}>
-            Project ReMotion
-          </h1>
-          <p style={{ margin: '0 0 1rem 0', color: '#5b6472', fontSize: '0.95rem' }}>
-            Investigation in progress...
-          </p>
-          <span className="badge badge-flagged" style={{ fontSize: '0.85rem' }}>
-            {str}
-          </span>
-        </div>
-      );
-    }
-
-    // Mount the React component into the real DOM #root
-    const rootElement = document.getElementById('root');
-    const root = ReactDOM.createRoot(rootElement);
-    root.render(<CaseSummary />);
-  </script>
-</body>
-
+      // Mount the React component into the real DOM #root
+      const rootElement = document.getElementById('root');
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(<CaseSummary />);
+    </script>
+  </body>
 </html>

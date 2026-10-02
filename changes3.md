@@ -495,4 +495,120 @@ A professional router library (such as React Router, TanStack Router, or Vue Rou
     2. If the user switched tabs in People & Locations (from People to Locations), clicking "Back" does not switch back to the People tab; it navigates to the previous page because sub-tabs do not update the URL hash.
     3. Any search queries or filter selections applied before navigating away are completely wiped out upon returning via the back button.
 
+---
+
+## Demo 5 — React introduction
+
+### Tasks
+
+#### 1. Tiny Component Written from Scratch (`CaseSummary`)
+
+We authored a standalone component (`CaseSummary`) in a throwaway sandbox (`src/sandbox.html`) rendering static data via JSX:
+
+```jsx
+function CaseSummary() {
+  const str = 'Active Lead';
+
+  return (
+    <div className="sandbox-container">
+      <div className="sandbox-tag">React Sandbox &bull; Demo 5</div>
+      <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '1.5rem', color: '#fff' }}>
+        Project ReMotion
+      </h1>
+      <p style={{ margin: '0 0 1.25rem 0', color: '#94a3b8', fontSize: '0.95rem' }}>
+        Investigation in progress: AI-assisted rehabilitation robot malfunction.
+      </p>
+      <span className="badge badge-flagged" style={{ fontSize: '0.85rem' }}>
+        {str}
+      </span>
+    </div>
+  );
+}
+
+// Mounted in the sandbox DOM:
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<CaseSummary />);
+```
+
+- **Live Sandbox File:** Created at `src/sandbox.html` using standalone React 18 and Babel, running in the browser and demonstrating our JSX component live.
+
+---
+
+#### 2. What "Component" Means in React vs. a Function Returning an HTML String
+
+- **Vanilla Function returning an HTML String (e.g. `renderEvidenceCardHTML` in `app.js`):**
+  - **Raw Text Output:** It simply concatenates characters into a long text string (`"<div>" + ev.title + "</div>"`). The browser engine has no structural understanding of this string until it is assigned to `container.innerHTML`.
+  - **Destructive Updates:** When injected via `innerHTML`, the browser must wipe out the entire existing DOM container, parse the raw HTML string, instantiate new DOM elements from scratch, and recalculate the layout (reflow & repaint).
+  - **Security Risk (XSS):** If user-supplied data in `ev.title` contains `<script>` or malicious tags, it will be injected directly into the DOM unless manually escaped.
+  - **Decoupled Architecture:** Markup is created in a string-builder function, event listeners are attached in a separate `init()` function via event delegation, and state lives in disconnected global variables.
+
+- **React Component (`CaseSummary`):**
+  - **Object / Virtual DOM Output:** A React component is a JavaScript function that returns **JSX**, which compiles directly into Virtual DOM JavaScript objects (`React.createElement(...)`).
+  - **Surgical, Non-Destructive DOM Updates:** Instead of blowing away containers, React performs in-memory diffing between renders and updates only the exact properties or text nodes that changed, preserving element focus, selection, and scroll positions.
+  - **Automatic XSS Protection:** Values placed inside `{curlyBraces}` are automatically sanitized and treated strictly as text data, neutralizing script injection attacks.
+  - **Encapsulated Building Block:** A component unites structure (JSX), behavior (events), and lifecycle into a reusable, self-contained unit.
+
+---
+
+### Questions
+
+#### 1. What is JSX, actually? What does it compile to?
+
+- **What JSX is:**
+  - JSX (JavaScript XML) is a **syntax extension (syntactic sugar)** for JavaScript that allows developers to write familiar, HTML-like markup directly within JavaScript files.
+  - Browsers **cannot natively execute JSX**. If loaded directly into a browser JS engine, it causes a `SyntaxError`.
+- **What it compiles to:**
+  - Before reaching the browser, build tools (such as Babel, esbuild, or SWC) compile JSX down into standard JavaScript function calls:
+    ```javascript
+    // Classic runtime:
+    React.createElement('h1', null, 'Project ReMotion');
+
+    // Modern JSX runtime:
+    import { jsx as _jsx } from 'react/jsx-runtime';
+    _jsx('h1', { children: 'Project ReMotion' });
+    ```
+  - These function calls return lightweight **plain JavaScript objects** representing the Virtual DOM node:
+    ```javascript
+    {
+      type: 'h1',
+      props: { children: 'Project ReMotion' },
+      key: null,
+      ref: null
+    }
+    ```
+
+---
+
+#### 2. Compare your tiny component to the old `renderEvidenceCardHTML(ev)` function. What is fundamentally different about how each one's output becomes real DOM?
+
+| Dimension | `renderEvidenceCardHTML(ev)` (Old Vanilla) | `CaseSummary()` (React Component) |
+|---|---|---|
+| **Return Value** | A primitive **string** of HTML characters (`"<div class=...>...</div>"`). | A **JavaScript Object** (Virtual DOM element tree). |
+| **How it Reaches the DOM** | Assigned to `container.innerHTML = htmlString`. | Handled by React's reconciler (`ReactDOM.createRoot().render(...)`). |
+| **Browser Pipeline** | Browser halts JS, parses raw HTML text with C++ parser, destroys previous DOM nodes, creates brand-new DOM elements, and forces a full layout reflow/repaint. | React compares the new virtual object tree with the previous virtual tree (**diffing**). It calls fine-grained native DOM methods (`document.createElement()`, `element.setAttribute()`, `node.textContent = ...`) **only on modified nodes**. |
+| **Element Identity** | Existing DOM elements and event listeners are destroyed and recreated from scratch. | Real DOM elements are preserved across renders; focus and scroll positions are retained. |
+| **Security Handling** | Unescaped string concatenation allows malicious `<script>` injection (XSS). | Interpolated expressions `{str}` are automatically escaped as text, preventing XSS. |
+
+---
+
+#### 3. What does it mean that "components are just functions" in React? What would break if a component's function body had a side effect (e.g. mutated a global variable) every time it rendered?
+
+- **What "components are just functions" means:**
+  - In React, a component is designed to behave like a **pure function**:
+    $$\text{UI} = f(\text{props, state})$$
+  - Given the same inputs (props and state), it should always produce and return the exact same JSX/Virtual DOM representation.
+  - The render phase should be mathematically "pure": it must calculate the UI description without reaching outside its own scope to mutate external state, modify the global environment, or trigger side effects.
+
+- **What would break if a component's function body had a side effect (e.g. mutating a global variable):**
+  1. **Unpredictable Render Frequency & State Corruption:**
+     - Developers do not control when or how often React invokes a component function. React re-renders components whenever a parent updates, context changes, or during performance optimizations.
+     - In development mode, **React Strict Mode deliberately executes every component function TWICE** on each render to identify accidental side effects.
+     - If your function body mutates an external variable (e.g. `globalCount++` or modifies a global list), the count will jump unpredictably (e.g. increments by 2, 4, or 10 on seemingly unrelated interactions), corrupting the application state.
+  2. **Race Conditions & Non-Deterministic UI:**
+     - If multiple components read and mutate shared global variables during rendering, their execution order determines the outcome. Because React can pause, resume, or abort render work (concurrent rendering), the UI becomes erratic, buggy, and impossible to debug.
+  3. **Where Side Effects Belong in React:**
+     - Side effects (such as fetching data, writing to `localStorage`, setting timers, or manually mutating the real DOM) must **never** run naked in the render function body.
+     - They must be isolated inside **event handlers** (e.g. `onClick`, `onSubmit`) or managed lifecycle hooks (**`useEffect`**), which React guarantees will run only after the DOM has been safely updated.
+
+
 

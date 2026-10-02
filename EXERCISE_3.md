@@ -27,7 +27,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | 2 | SSR vs. CSR | ☑ |
 | 3 | The virtual DOM | ☑ |
 | 4 | SPA vs. MPA: state & routing | ☑ |
-| 5 | React introduction | ☐ |
+| 5 | React introduction | ☑ |
 | 6 | React + TypeScript entry point in the Vite project | ☐ |
 | 7 | Component hierarchy for the whole app | ☐ |
 | 8 | Architecture Decision Record: why SPA/React | ☐ |
@@ -101,14 +101,14 @@ observable evidence (view source, network tab, etc.).
 
 **Tasks**
 
-- [ ] Read enough of the React docs (or equivalent) to write, from scratch, a single tiny component (it can live in a throwaway sandbox, not necessarily this project yet) that renders a piece of static data as JSX. No state, no props even, just to prove you can write and reason about JSX.
-- [ ] Identify, in your own words, what "component" means in React, and how it differs from a plain JavaScript function that happens to return an HTML string (which is essentially what several functions in the old `app.js` did, e.g. `renderEvidenceCardHTML()`).
+- [x] Read enough of the React docs (or equivalent) to write, from scratch, a single tiny component (it can live in a throwaway sandbox, not necessarily this project yet) that renders a piece of static data as JSX. No state, no props even, just to prove you can write and reason about JSX.
+- [x] Identify, in your own words, what "component" means in React, and how it differs from a plain JavaScript function that happens to return an HTML string (which is essentially what several functions in the old `app.js` did, e.g. `renderEvidenceCardHTML()`).
 
 **Questions** (depend on the tasks above)
 
-- [ ] What is JSX, actually? What does it compile to?
-- [ ] Compare your tiny component to the old `renderEvidenceCardHTML(ev)` function (string concatenation returning an HTML string). What is fundamentally different about how each one's output becomes real DOM?
-- [ ] What does it mean that "components are just functions" in React? What would break if a
+- [x] What is JSX, actually? What does it compile to?
+- [x] Compare your tiny component to the old `renderEvidenceCardHTML(ev)` function (string concatenation returning an HTML string). What is fundamentally different about how each one's output becomes real DOM?
+- [x] What does it mean that "components are just functions" in React? What would break if a
 component's function body had a side effect (e.g. mutated a global variable) every time it rendered?
 
 ---

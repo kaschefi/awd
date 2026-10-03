@@ -132,20 +132,20 @@ window.navigateTo = navigateTo; // Expose globally for inline buttons in HTML sn
 
 async function handleHashChange(): Promise<void> {
   let view = window.location.hash.replace('#', '').trim();
-  // Default to 'react' if no route hash is specified (home page)
+  // Default to 'react/dashboard' if no route hash is specified (home page)
   if (!view) {
-    view = 'react';
+    view = 'react/dashboard';
   }
   const reactContainer = document.getElementById('react-root');
+  const vanillaContainer = document.getElementById('vanilla-root');
   const appContainer = document.getElementById('app');
 
-  // Coexistence mechanism: #react displays the React migration entry point
-  if (view === 'react') {
+  const isReactRoute = view === 'react' || view.startsWith('react/');
+
+  // Coexistence mechanism: React routes display the React migration shell
+  if (isReactRoute) {
     state.currentPage = 'react';
-    document.querySelectorAll('.nav-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.getAttribute('data-view') === 'react');
-    });
-    if (appContainer) appContainer.classList.add('hidden');
+    if (vanillaContainer) vanillaContainer.classList.add('hidden');
     if (reactContainer) reactContainer.classList.remove('hidden');
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) overlay.classList.add('hidden');
@@ -154,6 +154,7 @@ async function handleHashChange(): Promise<void> {
 
   // Restore vanilla app container visibility for standard routes
   if (reactContainer) reactContainer.classList.add('hidden');
+  if (vanillaContainer) vanillaContainer.classList.remove('hidden');
   if (appContainer) appContainer.classList.remove('hidden');
 
   if (!routes[view]) {

@@ -16,78 +16,82 @@
       </div>
     </div>
 
-    <!-- Persistent Header -->
-    <header class="app-header">
-      <div class="header-inner">
-        <div class="brand">
-          <img src="./assets/logo/logo.svg" alt="Project ReMotion logo" class="brand-logo" />
-          <div>
-            <h1>Project ReMotion</h1>
-            <p class="subtitle">Investigate the failure of an AI-assisted rehabilitation robot.</p>
+    <!-- Legacy Vanilla App Shell -->
+    <div id="vanilla-root">
+      <header class="app-header">
+        <div class="header-inner">
+          <div class="brand">
+            <img src="./assets/logo/logo.svg" alt="Project ReMotion logo" class="brand-logo" />
+            <div>
+              <h1>Project ReMotion</h1>
+              <p class="subtitle">
+                Investigate the failure of an AI-assisted rehabilitation robot.
+              </p>
+            </div>
           </div>
+          <nav class="main-nav" aria-label="Main navigation">
+            <button
+              type="button"
+              class="nav-btn"
+              data-view="dashboard"
+              onclick="navigateTo('dashboard')"
+            >
+              Dashboard
+            </button>
+            <button
+              type="button"
+              class="nav-btn"
+              data-view="evidence"
+              onclick="navigateTo('evidence')"
+            >
+              Evidence
+            </button>
+            <button type="button" class="nav-btn" data-view="people" onclick="navigateTo('people')">
+              People &amp; Locations
+            </button>
+            <button
+              type="button"
+              class="nav-btn"
+              data-view="timeline"
+              onclick="navigateTo('timeline')"
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              class="nav-btn"
+              data-view="workspace"
+              onclick="navigateTo('workspace')"
+            >
+              Workspace
+            </button>
+            <button
+              type="button"
+              class="nav-btn"
+              data-view="react"
+              onclick="navigateTo('react/dashboard')"
+              style="border: 1px dashed var(--color-accent); color: var(--color-accent)"
+            >
+              React Shell &rarr;
+            </button>
+          </nav>
         </div>
-        <nav class="main-nav" aria-label="Main navigation">
-          <button
-            type="button"
-            class="nav-btn"
-            data-view="dashboard"
-            onclick="navigateTo('dashboard')"
-          >
-            Dashboard
-          </button>
-          <button
-            type="button"
-            class="nav-btn"
-            data-view="evidence"
-            onclick="navigateTo('evidence')"
-          >
-            Evidence
-          </button>
-          <button type="button" class="nav-btn" data-view="people" onclick="navigateTo('people')">
-            People &amp; Locations
-          </button>
-          <button
-            type="button"
-            class="nav-btn"
-            data-view="timeline"
-            onclick="navigateTo('timeline')"
-          >
-            Timeline
-          </button>
-          <button
-            type="button"
-            class="nav-btn"
-            data-view="workspace"
-            onclick="navigateTo('workspace')"
-          >
-            Workspace
-          </button>
-          <button
-            type="button"
-            class="nav-btn"
-            data-view="react"
-            onclick="navigateTo('react')"
-            style="border: 1px dashed var(--color-accent); color: var(--color-accent)"
-          >
-            React Preview
-          </button>
-        </nav>
-      </div>
-    </header>
+      </header>
 
-    <!-- Page Swap Container (Vanilla) -->
-    <main id="app" class="app-main"></main>
+      <!-- Page Swap Container (Vanilla) -->
+      <main id="app" class="app-main"></main>
+
+      <!-- Persistent Footer (Vanilla) -->
+      <footer class="app-footer">
+        <p>
+          Project ReMotion Investigation Portal &mdash; Research Center AI, Software and IT-Security
+          of HCW (fictional case study) &bull; Continuous Deployment Active
+        </p>
+      </footer>
+    </div>
 
     <!-- React Migration Root Container -->
-    <div id="react-root" class="app-main hidden"></div>
-
-    <!-- Persistent Footer -->
-    <footer class="app-footer">
-      <p>
-        Project ReMotion Investigation Portal &mdash; Research Center AI, Software and IT-Security
-        of HCW (fictional case study) &bull; Continuous Deployment Active
-      </p>
-    </footer>
+    <div id="react-root" class="hidden"></div>
 
     <script type="module" src="app.ts"></script>
     <script type="module" src="main.tsx"></script>

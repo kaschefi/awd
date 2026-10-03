@@ -999,6 +999,150 @@ We used four primary architectural criteria:
     - **Selective / Partial Hydration:** JavaScript is shipped **only** for the interactive controls that strictly require it (e.g. the confidence slider or bookmark star), reducing client JS payloads from hundreds of kilobytes down to under 10–15 KB.
     - **Graceful Fallback:** Basic navigation and filtering can fall back to standard HTML `<form action="/evidence" method="GET">` queries if JavaScript fails entirely.
 
+---
+
+## Demo 9 — Migrate the application shell
+
+### Tasks Completed
+
+1. **Built the Application Shell in React + TypeScript:**
+   - [Header.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/Header.tsx):
+     - Displays brand logo (`./assets/logo/logo.svg`), Case Title (*Project ReMotion*), Subtitle (*Investigate the failure of an AI-assisted rehabilitation robot.*), and an active **React Shell (Demo 9)** badge.
+     - Implements accessible navigation buttons (`Dashboard`, `Evidence`, `People & Locations`, `Timeline`, `Workspace`) with dynamic `className={`nav-btn ${isActive ? 'active' : ''}`}` and `aria-current={isActive ? 'page' : undefined}`.
+     - Includes a coexistence switch button (`← Vanilla App`) allowing investigators/evaluators to jump to the legacy Vanilla JS app.
+   - [Footer.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/Footer.tsx):
+     - Implements the persistent footer matching the design system token classes (`.app-footer`).
+   - [StubView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/StubView.tsx):
+     - Reusable stub view component for views whose migration is planned for future phases (Evidence Locker, People & Locations, Timeline, and Workspace).
+     - Renders distinctive icons, migration status pills, descriptions, component hierarchy roadmap notes, and an action button to jump directly into the legacy Vanilla view.
+   - [DashboardStub.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/DashboardStub.tsx):
+     - Serves as the home view for the application shell in Demo 9, displaying incident status, routing status cards, and interactive test buttons across all views + an explicit 404 test route (ready for full data migration in Demo 10).
+   - [NotFoundView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/NotFoundView.tsx):
+     - Explicit 404 handler component displaying the unrecognized route string, an architectural explanation contrasting it with Vanilla's silent fallback, and a "Return to Dashboard" action button.
+   - [ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx):
+     - Root application shell component managing routing state with `useState` and synchronizing with `window.location.hash` via `useEffect` listening to `hashchange`.
+     - Declaratively selects and renders the active view inside `<main className="app-main">`.
+   - [navigation.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/types/navigation.ts):
+     - Strongly typed view keys (`ViewKey = 'dashboard' | 'evidence' | 'people' | 'timeline' | 'workspace'`) and navigation item configurations.
+
+2. **Wired up Route Navigation & Clean Coexistence:**
+   - Navigating between views updates the URL hash (e.g. `#react/dashboard`, `#react/evidence`, `#react/people`, `#react/timeline`, `#react/workspace`).
+   - Browser Back and Forward buttons update the URL hash, which triggers the `hashchange` listener in `ReactApp.tsx`, updating `currentView` and re-rendering the view automatically.
+   - In [src/index.html](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/index.html), the legacy Vanilla layout is wrapped in `<div id="vanilla-root">`. When navigating to any React route, `#vanilla-root` is hidden and `#react-root` is displayed. When switching back to Vanilla, `#react-root` is hidden and `#vanilla-root` is restored with zero layout clashing or duplicate headers/footers.
+
+---
+
+### Questions & Analysis
+
+#### 1. How does "the current view" get tracked in your React shell? Compare this directly to how `currentPage` and `handleHashChange()` did it in the vanilla version? What's actually different, and what's superficially different but conceptually the same?
+
+##### A. How View Tracking Works in the React Shell
+
+In [ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx):
+1. **Reactive State Storage:**
+   The active view is held in standard React component state:
+   ```tsx
+   const [currentView, setCurrentView] = useState<string>(() => {
+     return extractViewFromHash(window.location.hash).view;
+   });
+   ```
+2. **Browser Hash Synchronization:**
+   A `useEffect` hook attaches an event listener to the browser's `hashchange` event upon mounting and properly detaches it when unmounting:
+   ```tsx
+   useEffect(() => {
+     const syncHashToView = () => {
+       const { isReact, view } = extractViewFromHash(window.location.hash);
+       if (isReact) setCurrentView(view);
+     };
+     window.addEventListener('hashchange', syncHashToView);
+     return () => window.removeEventListener('hashchange', syncHashToView);
+   }, []);
+   ```
+3. **Declarative Rendering:**
+   When `setCurrentView(view)` is invoked (either via button click or URL change), React schedules a re-render. The shell component evaluates:
+   - `<Header currentView={currentView} onNavigate={navigateToView} />` (which highlights the active nav button via `className={`nav-btn ${isActive ? 'active' : ''}`}`)
+   - `{renderContent()}` inside `<main className="app-main">`, which returns the matching view component (`<DashboardStub />`, `<StubView />`, or `<NotFoundView />`).
+
+---
+
+##### B. Direct Comparison Table: Vanilla vs. React Shell
+
+| Architectural Dimension | Vanilla Implementation (`app.ts`) | React Implementation (`ReactApp.tsx`) |
+| :--- | :--- | :--- |
+| **State Storage** | Global mutable property on a shared object: `state.currentPage = view`. | Component-scoped reactive hook: `const [currentView, setCurrentView] = useState(...)`. |
+| **State Mutation** | Imperative assignment: direct variable overwrite (`state.currentPage = view`). | Declarative setter dispatch: `setCurrentView(view)` enqueued to the React Fiber reconciler. |
+| **UI Update Trigger** | Manual procedural calls: sequentially invoking DOM queries and helper functions (`classList.toggle`, `innerHTML = ...`, `viewInitFn()`). | Automatic reactive re-render: state change triggers component function re-execution and Virtual DOM reconciliation. |
+| **Nav Button Active State** | Imperative DOM query & class toggle: `document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-view') === view))`. | Declarative JSX expression: `className={`nav-btn ${currentView === item.id ? 'active' : ''}`}` evaluated directly in the render loop. |
+| **View Content Insertion** | Destructive string injection: `appContainer.innerHTML = htmlModule.default`, wiping all existing DOM nodes and attached event listeners. | Declarative component mounting: `{renderContent()}` returning typed JSX components, preserving unmodified DOM nodes. |
+| **Lifecycle & Cleanup** | Manual element lookup and manual event wiring; high risk of memory leaks if previous listeners are not unwired. | Declarative `useEffect` cleanup return function: `return () => window.removeEventListener(...)`. |
+
+---
+
+##### C. What is Superficially Different vs. What is Conceptually the Same?
+
+- **Superficially Different (Syntax & Mechanics):**
+  1. *State Mutation Syntax:* In Vanilla, we write `state.currentPage = view`. In React, we call `setCurrentView(view)`. Under the hood, React's setter does not merely store a string; it marks the component dirty on the Fiber work queue and triggers a re-render.
+  2. *DOM Class Highlighting:* In Vanilla, we imperatively query `.nav-btn` elements via `document.querySelectorAll` and call `classList.toggle('active')`. In React, we pass `currentView` as a prop and use JSX template interpolation (`nav-btn ${isActive ? 'active' : ''}`).
+  3. *View Swapping:* In Vanilla, we import raw HTML string modules and assign them to `appContainer.innerHTML`. In React, we return typed component functions (`<DashboardStub />`, `<StubView />`).
+
+- **Conceptually the Same (Underlying SPA Architecture):**
+  1. *URL Hash as the External Single Source of Truth:* Both architectures treat `window.location.hash` as the browser's navigation anchor. Both listen to the exact same browser event: `window.addEventListener('hashchange', ...)`.
+  2. *Hash Parsing to View Identifiers:* Both systems extract a route token from the hash string (e.g. stripping `#` or `react/`) and map that token to a corresponding view.
+  3. *History Stack Integration:* Both rely on the browser's standard history stack (`window.history`), enabling seamless Back and Forward button navigation without reloading the webpage.
+  4. *Two-Way State Synchronization:* Both require keeping the visual UI (the active navigation button highlight and main view container) strictly in sync with the current URL.
+
+---
+
+#### 2. What happens in your shell if a user navigates to a view that doesn't exist? How does that compare to the vanilla app's fallback-to-dashboard behavior?
+
+##### A. Behavior in the React Shell
+
+In our React shell:
+1. If a user navigates to an unrecognized URL (e.g. `#react/quantum-telemetry` or clicks an outdated bookmark):
+   - The hash parser extracts `'quantum-telemetry'` as the requested view.
+   - `renderContent()` executes the `switch (currentView)` statement.
+   - Because `'quantum-telemetry'` does not match `'dashboard'`, `'evidence'`, `'people'`, `'timeline'`, or `'workspace'`, execution lands in the `default` branch:
+     ```tsx
+     default:
+       return (
+         <NotFoundView
+           attemptedRoute={`#react/${currentView}`}
+           onNavigateHome={() => navigateToView('dashboard')}
+         />
+       );
+     ```
+2. **The User Experience:**
+   - The user sees a dedicated, clean **404 — View Not Found** card with an amber/red warning header.
+   - The card displays the exact route string that was attempted (`#react/quantum-telemetry`).
+   - The card provides an explanatory message informing the user that the view does not exist.
+   - A prominent primary button (**"Return to Dashboard"**) allows the user to immediately navigate back to a valid state with a single click.
+
+---
+
+##### B. Comparison to the Vanilla App's Fallback-to-Dashboard Behavior
+
+In the Vanilla application ([app.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/app.ts)):
+```ts
+if (!routes[view]) {
+  view = 'dashboard';
+}
+state.currentPage = view;
+```
+When an unrecognized route was entered, Vanilla **silently redirected** to `'dashboard'`.
+
+##### C. Architectural Evaluation of the Trade-Off
+
+| Factor | Vanilla Silent Fallback (`view = 'dashboard'`) | React Explicit 404 (`<NotFoundView />`) |
+| :--- | :--- | :--- |
+| **User Transparency** | **Poor / Confusing:** The user is dumped onto the Dashboard with zero explanation. If they clicked a link expecting Evidence or People, they have no idea why they are looking at the Dashboard. | **High:** Explicitly communicates that the requested resource could not be found, avoiding confusion. |
+| **URL vs UI Synchronization** | **De-synchronized:** The browser URL bar retains `#unknown-route`, but the UI renders the Dashboard. The URL indicates one thing while the screen displays another. | **Synchronized:** The URL (`#react/unknown-route`) accurately corresponds to the 404 View displaying the error for that exact route. |
+| **Developer Debugging** | **Masks Errors:** Broken internal links or typos in `onclick="navigateTo('evidenc')"` quietly fall back to the dashboard, making routing bugs hard to spot during testing. | **Surfaces Errors Immediately:** Broken links instantly trigger the 404 card, making invalid routes immediately detectable during QA and automated testing. |
+| **User Agency & Recovery** | **Disorienting:** Assumes intent on behalf of the user without confirmation. | **Actionable:** Gives the user clear context and a dedicated recovery action ("Return to Dashboard"). |
+
+**Conclusion:**
+While a silent fallback may appear "resilient" at first glance, in professional web applications it violates the principle of least astonishment, masks broken navigation links, and causes state de-synchronization. The React shell's explicit 404 handler is significantly superior for usability, accessibility, and maintainability.
+
+
 
 
 

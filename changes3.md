@@ -1142,6 +1142,175 @@ When an unrecognized route was entered, Vanilla **silently redirected** to `'das
 **Conclusion:**
 While a silent fallback may appear "resilient" at first glance, in professional web applications it violates the principle of least astonishment, masks broken navigation links, and causes state de-synchronization. The React shell's explicit 404 handler is significantly superior for usability, accessibility, and maintainability.
 
+---
+
+## Demo 10 — Migrate the Dashboard view
+
+### Tasks Completed
+
+1. **Rebuilt the Dashboard View as Modular React Components:**
+   - Following the component hierarchy designed in **Demo 7**, the Dashboard view was decomposed into focused, single-responsibility components under [src/components/dashboard/](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/):
+     - [usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts): Custom React hook that reads case data, evidence, people, locations, timeline, and bookmarks from the application's central data loader and `state.ts`, listening for the `portal:dataloaded` event with an automated fallback.
+     - [CaseSummaryCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/CaseSummaryCard.tsx): Displays case title (*Project ReMotion – Investigation Portal*), incident status badge (`OPEN`), location, opened date, lead investigator, and narrative summary.
+     - [StatCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/StatCard.tsx): Reusable presentation card for single numeric metrics matching `.stat-card`, `.stat-value`, and `.stat-label`.
+     - [StatGrid.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/StatGrid.tsx): Renders the 5 core portal metrics in a responsive grid: Evidence items (18), People (6), Locations (6), Bookmarked (2), and Reviewed (1).
+     - [ReviewProgress.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/ReviewProgress.tsx): Displays overall evidence review completion with an accessible progress bar and percentage text (`6% of evidence reviewed (1 of 18 reviewed)`).
+     - [HowToUsePortal.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/HowToUsePortal.tsx): Renders the guidance card with 4 interactive jump buttons navigating to Evidence, People & Locations, Timeline, and Workspace.
+     - [RecentEvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/RecentEvidenceList.tsx): Extracts the 5 most recent evidence items (`E18`, `E17`, `E16`, `E15`, `E14`), displaying item ID, title, and status badges (`UNREVIEWED`), plus a direct jump link to Evidence Locker.
+     - [RecentTimelineList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/RecentTimelineList.tsx): Extracts the 5 most recent chronological events with formatted dates and event descriptions, plus a jump link to Timeline.
+     - [DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx): Orchestrator component connecting `usePortalData`, deriving statistics synchronously on render, and assembling the complete view.
+   - Connected `DashboardView` directly into [ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx) replacing the Demo 9 stub.
+
+2. **Verified Live with Real Data & Navigation Resilience:**
+   - Verified in the live browser via the automated subagent:
+     - Real data verified: 18 Evidence items, 6 People, 6 Locations, 2 Bookmarks, 1 Reviewed item, 6% review progress, and correct incident narrative.
+     - Navigation resilience verified: Navigating away to Evidence, Timeline, People, and Workspace and returning to Dashboard immediately re-renders all data without data corruption, loss, or lag.
+
+---
+
+### Questions & Analysis
+
+#### 1. Where does the Dashboard's data (case info, evidence, timeline) come from in your React version, and how does it get to the components that render it? Is this the final architecture you intend to keep, or a placeholder you know you'll change in a later exercise?
+
+##### A. Where the Data Comes From
+
+In this migration phase (Demo 10), the Dashboard reads from the exact same data source that the application already loads:
+1. **Source of Truth:**
+   - Raw JSON files in `public/data/`: `case.json`, `evidence.json`, `people.json`, `locations.json`, and `timeline.json`.
+   - Browser `localStorage` for user bookmarks (`remotion_bookmarks`) and notes (`remotion_notes`).
+2. **Data Ingestion:**
+   - Loaded via [dataLoader.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/dataLoader.ts) (`fetchCaseData()`, `fetchEvidenceData()`, etc.) and stored in the central [state.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/state.ts) store during application boot.
+
+---
+
+##### B. How the Data Reaches the Components
+
+Data flows from the legacy store into the React component tree via a reactive bridge:
+1. **The `usePortalData()` Hook ([usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts)):**
+   - Encapsulates reading from `state.ts`.
+   - Subscribes to the `portal:dataloaded` custom event dispatched by `app.ts` when async loading completes.
+   - Includes an automated fallback fetch to guarantee data availability even on direct hard refreshes on `#react/dashboard`.
+2. **Top-Down Prop Drilling (Uni-Directional Data Flow):**
+   - [DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx) invokes `usePortalData()`.
+   - It decomposes the data object into strictly typed props and passes them down:
+     - `caseData` $\longrightarrow$ `<CaseSummaryCard caseData={caseData} />`
+     - Counts $\longrightarrow$ `<StatGrid evidenceCount={...} peopleCount={...} ... />`
+     - Derived Progress $\longrightarrow$ `<ReviewProgress reviewedCount={...} progressPct={...} />`
+     - Slices $\longrightarrow$ `<RecentEvidenceList evidence={evidence} />` and `<RecentTimelineList timeline={timeline} />`.
+
+---
+
+##### C. Is This the Final Architecture or a Placeholder?
+
+**This is an intentional transitional bridge (placeholder architecture).**
+
+- **Why it was chosen for Demo 10:**
+  - In a brownfield migration, migrating one view at a time requires coexistence. Reading from the existing `state.ts` store allows React components to render live production data without duplicating network requests or rewriting the entire state layer on Day 1.
+- **Why it cannot be the final architecture:**
+  - `state.ts` is a global mutable object. Reading directly from global mutable state outside of React's state/context lifecycle breaks idiomatic React patterns (e.g. concurrent rendering, time-travel debugging, and test isolation) and requires custom events or polling to trigger re-renders.
+- **What we will change in later exercises (Exercises 4 & 5):**
+  - When the remaining views (Evidence, People, Timeline, Workspace) are migrated, the mutable `state.ts` object will be eliminated.
+  - We will replace it with a **React Context Provider** (`<InvestigationProvider>`) with `useReducer`, or a dedicated modern client-state/server-cache solution (such as **TanStack Query / Zustand**). Data fetching, caching, bookmark toggling, and note persistence will then exist entirely within declarative React hooks.
+
+---
+
+#### 2. The old vanilla dashboard had a real bug where it could show stale numbers because it only re-rendered on a view's *first* visit (a manual render-cache flag). Does your React version have an equivalent risk? Why or why not, given how React re-renders?
+
+##### A. The Bug in the Vanilla Architecture
+
+In the legacy Vanilla application:
+- `renderDashboard()` generated an HTML string and injected it into `container.innerHTML` only when `init()` was called.
+- In many classic SPA implementations (and earlier versions of this project), developers placed a manual guard flag:
+  ```js
+  if (hasRenderedDashboard) return; // manual render-cache flag
+  hasRenderedDashboard = true;
+  ```
+- **The Stale State Bug:** If an investigator navigated to the Evidence view, marked 5 evidence items as "Reviewed", or added bookmarks in the Workspace, and then navigated back to the Dashboard, the Dashboard was gated by `hasRenderedDashboard` or did not re-query state. As a result:
+  - The "Reviewed" count remained at `1`.
+  - The Review Progress bar remained frozen at `6%`.
+  - The "Bookmarked" stat card did not reflect newly added bookmarks.
+
+---
+
+##### B. Does the React Version Have an Equivalent Risk?
+
+**No. Our React Dashboard has zero equivalent risk.**
+
+##### C. Why React Completely Prevents This Bug
+
+1. **Unmount & Fresh Mount on Route Changes:**
+   In our React router skeleton ([ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx)):
+   ```tsx
+   switch (currentView) {
+     case 'dashboard':
+       return <DashboardView onNavigate={navigateToView} />;
+     case 'evidence':
+       return <StubView ... />;
+   }
+   ```
+   When the user navigates from Dashboard to Evidence, `<DashboardView />` is **unmounted** from the Fiber tree. When they navigate back to Dashboard, `<DashboardView />` is **mounted fresh**.
+2. **Top-to-Bottom Execution on Render:**
+   Every time `<DashboardView />` mounts:
+   - The entire function body executes anew.
+   - `usePortalData()` reads the latest state from memory (`state.allEvidence`, `state.bookmarks`).
+   - Derived statistics (`reviewedCount`, `progressPct`) are calculated fresh against the live arrays.
+3. **No Imperative Mutation Flags:**
+   React does not use manual boolean flags (`hasRendered = true`) to gate updates. Rendering is declarative: given current state $S$, React produces the Virtual DOM tree $V(S)$.
+4. **Reactivity to State Updates:**
+   Even while staying on the Dashboard, if data changes and triggers state update, React's reconciler diffs the Virtual DOM and updates the DOM elements with surgical precision.
+
+---
+
+#### 3. What, if anything, does your React Dashboard do differently from the vanilla one in terms of *when* it recalculates derived values (like the review-progress percentage)?
+
+##### A. Vanilla Approach: Imperative, Manual, Procedural Calculation
+
+In Vanilla ([src/pages/dashboard/script.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/pages/dashboard/script.ts)):
+```ts
+let reviewedCount = 0;
+for (let i = 0; i < state.allEvidence.length; i++) {
+  const item = state.allEvidence[i];
+  if (item && (item.status || '').toLowerCase() === 'reviewed') reviewedCount++;
+}
+
+const progressPct =
+  state.allEvidence.length === 0
+    ? 0
+    : Math.round((reviewedCount / state.allEvidence.length) * 100);
+```
+- **When it recalculated:** Only inside `renderDashboard()`, which ran procedurally upon entering the route.
+- **The flaw:** If anything changed while on the page (or if `renderDashboard()` was bypassed by a routing cache), derived values were never recalculated. If developers stored `progressPct` in global state, it created a classic **synchronization hazard** where `reviewedCount` and `progressPct` could fall out of sync with `allEvidence`.
+
+---
+
+##### B. React Approach: Synchronous Pure Computation During the Render Pass
+
+In our React implementation ([DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx)):
+```tsx
+const reviewedCount = useMemo(() => {
+  return evidence.filter((item) => (item.status || '').toLowerCase() === 'reviewed').length;
+}, [evidence]);
+
+const progressPct = useMemo(() => {
+  return evidence.length === 0 ? 0 : Math.round((reviewedCount / evidence.length) * 100);
+}, [evidence.length, reviewedCount]);
+```
+
+##### C. Key Architectural Differences:
+
+1. **Derived Values Are Never Stored in State:**
+   - Adhering to the official React principle: *"Don't put in state what you can compute during render."*
+   - We do not have `const [progressPct, setProgressPct] = useState(0)`.
+   - Storing derived values in separate state requires error-prone `useEffect` synchronization chains that cause extra render cycles and temporal state inconsistencies.
+2. **Deterministic & Synchronous Derivation:**
+   - `reviewedCount` and `progressPct` are derived **synchronously during the render pass**.
+   - Whenever `evidence` changes (or whenever the component re-renders), the new percentage is computed instantaneously before the JSX is returned.
+3. **Mathematical Impossibility of State Drift:**
+   - Because `progressPct` is calculated directly from `evidence.length` and `reviewedCount`, it is mathematically impossible for the progress bar to show `25%` while the evidence list only has `1 of 18 reviewed`. The UI state remains 100% consistent at all times.
+4. **Optimized Computation via `useMemo`:**
+   - By wrapping the calculation in `useMemo`, React avoids re-filtering the array on unrelated re-renders (such as parent layout or timer updates), recalculating only when the `evidence` array reference actually changes.
+
+
 
 
 

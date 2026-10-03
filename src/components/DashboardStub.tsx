@@ -1,11 +1,6 @@
 import React from 'react';
-import { ViewKey } from '../types/navigation';
 
-interface DashboardStubProps {
-  onNavigate: (view: ViewKey) => void;
-}
-
-export const DashboardStub: React.FC<DashboardStubProps> = ({ onNavigate }) => {
+export const DashboardStub: React.FC = () => {
   return (
     <div>
       <div
@@ -72,9 +67,7 @@ export const DashboardStub: React.FC<DashboardStubProps> = ({ onNavigate }) => {
           gap: '1rem',
           marginBottom: '1.5rem',
         }}
-      >
-      </div>
-
+      ></div>
     </div>
   );
 };

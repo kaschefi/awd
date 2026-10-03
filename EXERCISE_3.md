@@ -31,8 +31,8 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | 6 | React + TypeScript entry point in the Vite project | ☑ |
 | 7 | Component hierarchy for the whole app | ☑ |
 | 8 | Architecture Decision Record: why SPA/React | ☑ |
-| 9 | Migrate the application shell | ☐ |
-| 10 | Migrate the Dashboard view | ☐ |
+| 9 | Migrate the application shell | ☑ |
+| 10 | Migrate the Dashboard view | ☑ |
 
 A demo only counts as "Ready" once **every** task and question checkbox inside it (below) is
 ticked — the table above is just a fast overview, tick the boxes inside each demo first.
@@ -179,15 +179,15 @@ different, and what's superficially different but conceptually the same?
 
 **Tasks**
 
-- [ ] Rebuild the Dashboard view as React components (using your hierarchy from Demo 7 as a starting point), rendering the case summary, stat cards, review progress, and the recent
+- [x] Rebuild the Dashboard view as React components (using your hierarchy from Demo 7 as a starting point), rendering the case summary, stat cards, review progress, and the recent
 evidence/timeline lists. Reading from the same data your app already loads.
-- [ ] Confirm it renders correctly with real data, and that navigating away and back doesn't lose or corrupt anything.
+- [x] Confirm it renders correctly with real data, and that navigating away and back doesn't lose or corrupt anything.
 
 **Questions** (depend on the tasks above)
 
-- [ ] Where does the Dashboard's data (case info, evidence, timeline) come from in your React version, and how does it get to the components that render it? Is this the final architecture you intend to keep, or a placeholder you know you'll change in a later exercise?
-- [ ] The old vanilla dashboard had a real bug where it could show stale numbers because it only re-rendered on a view's *first* visit (a manual render-cache flag). Does your React version have an equivalent risk? Why or why not, given how React re-renders?
-- [ ] What, if anything, does your React Dashboard do differently from the vanilla one in terms of *when* it recalculates derived values (like the review-progress percentage)?
+- [x] Where does the Dashboard's data (case info, evidence, timeline) come from in your React version, and how does it get to the components that render it? Is this the final architecture you intend to keep, or a placeholder you know you'll change in a later exercise?
+- [x] The old vanilla dashboard had a real bug where it could show stale numbers because it only re-rendered on a view's *first* visit (a manual render-cache flag). Does your React version have an equivalent risk? Why or why not, given how React re-renders?
+- [x] What, if anything, does your React Dashboard do differently from the vanilla one in terms of *when* it recalculates derived values (like the review-progress percentage)?
 
 ---
 

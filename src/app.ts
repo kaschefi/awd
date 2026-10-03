@@ -223,6 +223,7 @@ async function initApp(): Promise<void> {
   // only show dashboard after all data is loaded
   loadAllData().then(async function () {
     handleHashChange();
+    window.dispatchEvent(new CustomEvent('portal:dataloaded'));
     // Bug (Demo 3): loadNoteAsync returns a Promise but it is logged directly
     // without .then() or await, so the console shows the Promise object itself.
     const firstNote = await loadNoteAsync('E01');

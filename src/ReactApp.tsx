@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { StubView } from './components/StubView';
 import { NotFoundView } from './components/NotFoundView';
-import { DashboardStub } from './components/DashboardStub';
+import { DashboardView } from './components/dashboard/DashboardView';
 import { ViewKey } from './types/navigation';
 
 function extractViewFromHash(hash: string): { isReact: boolean; view: string } {
@@ -52,7 +52,7 @@ export const App: React.FC = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
-        return <DashboardStub onNavigate={navigateToView} />;
+        return <DashboardView onNavigate={navigateToView} />;
       case 'evidence':
         return (
           <StubView

@@ -915,6 +915,91 @@ We used four primary architectural criteria:
 4. **Team Collaboration & Roadmapping:**
    - In a real engineering team, having the entire component hierarchy mapped out allows multiple developers to parallelize work—one developer can work on atomic primitives (`Badge`, `Button`, `Modal`), while others implement page shells or data fetchers, adhering to agreed-upon prop interfaces.
 
+---
+
+## Demo 8 — Architecture Decision Record: why SPA/React
+
+### Tasks
+
+#### 1. Architecture Decision Record (ADR 001)
+
+- **Title:** Adoption of Single-Page Application (SPA) Architecture with React & TypeScript
+- **Status:** **Accepted**
+- **Date:** October 2026
+- **Context:**
+  The Project ReMotion Investigation Portal is an analytical investigation dashboard for examining the technical, organizational, and physical evidence surrounding the failure of an AI-assisted rehabilitation robot.
+  The portal features:
+  - Multi-dimensional, interactive filtering and live text search across evidence logs.
+  - Cross-view data synthesis: connecting evidence to timeline events, suspects, and locations.
+  - Local state persistence: bookmarking items, annotating evidence with notes, and formulating hypotheses with confidence ratings.
+  - An internal/desktop workstation usage profile: investigators spend long, continuous sessions analyzing case files.
+
+- **Decision:**
+  We adopt a **Single-Page Application (SPA)** architecture authored in **React 19** with **TypeScript** and bundled via **Vite**.
+
+- **Arguments for why SPA + React is the right architecture for THIS specific app:**
+  1. **Rich Client-Side Interactivity & Zero-Latency Cross-Filtering:**
+     Investigating an incident requires rapid, continuous hypothesis testing—filtering by date, status, person, and location simultaneously. In an SPA, filtering 50+ evidence items takes less than 1 millisecond directly in browser memory. A multi-page app requiring server round trips for every filter toggle would be jarring and impede investigative flow.
+  2. **Coordinated Multi-View State (Declarative UI):**
+     State in this app is interconnected: bookmarking an evidence card must immediately update the Dashboard's review progress percentage, highlight the item in the Evidence list, and populate the Workspace's bookmark sidebar. With React's declarative model ($\text{UI} = f(\text{state})$), state updates propagate predictably with surgical DOM patching, completely eliminating the manual DOM querying and innerHTML overwrites that plagued the vanilla codebase.
+  3. **High Component Reusability & Consistency:**
+     Investigation artifacts (status badges, evidence summary cards, modal overlays, timeline chips) recur across 4 distinct views. React components with TypeScript interfaces guarantee strict design system adherence, type safety, and centralized logic.
+  4. **Offline Capability for Sensitive / Air-Gapped Environments:**
+     Forensic and safety-critical investigations often take place in disconnected, air-gapped, or field environments. Once the case datasets are loaded, the SPA can operate completely offline in the browser.
+
+---
+
+#### 2. Honest Trade-offs and Downsides of the SPA/React Choice for this App
+
+| Trade-off / Downside | Impact on Project ReMotion | Mitigations |
+|---|---|---|
+| **Initial Bundle Size & Load Delay** | React 19 + React DOM add ~140 KB (minified/gzipped) to the initial download. The browser must download and execute this runtime before rendering any view. | Mitigated by Vite's production tree-shaking, code-splitting, and caching static bundles via browser HTTP cache. |
+| **Total JavaScript Dependency (No Progressive Enhancement)** | If the user has JavaScript disabled or if an adblocker/corporate proxy corrupts script delivery, the user sees a blank screen or broken loading overlay. | Acceptable trade-off for an authenticated, internal analytical tool intended for modern desktop browser environments (not a public marketing site). |
+| **Client Memory Overhead** | Keeping all case data, virtual DOM representations, and component closures in RAM can lead to memory bloat over extended investigation sessions. | Implement component unmounting cleanups, avoid memory leaks in event listeners, and use windowed virtualization if datasets scale to thousands of items. |
+| **Tooling & Cognitive Complexity** | Requires a compilation toolchain (Vite, TypeScript, JSX transformation) and strict adherence to React mental models (immutability, hook dependency rules, pure rendering). | TypeScript provides compile-time safety and ESLint enforces React hook rules automatically. |
+
+---
+
+### Questions
+
+#### 1. What would you lose by keeping this app as server-rendered vanilla HTML/JS instead? What would you lose by choosing React specifically over a different SPA approach (e.g. vanilla JS with a router, or a lighter library)?
+
+- **What we would lose by keeping this app as server-rendered vanilla HTML/JS (MPA):**
+  1. **Instant, fluid responsiveness:** Every filter change, search keystroke, or page switch would require an HTTP request and full page reload, causing white flashes, losing scroll position, and resetting open modals.
+  2. **Seamless cross-view draft persistence:** In an MPA, drafting an incident hypothesis in the Workspace while simultaneously navigating to the Timeline to verify an event timestamp requires continuous backend database sync or session persistence. In an SPA, draft state resides naturally in memory and `localStorage`.
+  3. **Offline investigation capability:** An MPA cannot function without an active network connection to the server on every click.
+
+- **What we lose by choosing React over a lighter SPA library (e.g. Preact, Svelte, Lit) or Vanilla JS + Router:**
+  1. **Bundle Weight & Runtime Overhead:**
+     - Preact (~3 KB) or Svelte (which compiles away with no runtime) produce significantly smaller JavaScript payloads than React (~40+ KB minified core).
+     - Vanilla JS has zero library download cost and zero third-party dependencies.
+  2. **CPU Overhead of Virtual DOM Diffing:**
+     - React must construct in-memory object trees and calculate diffs on every render. Modern reactive frameworks (like Svelte or SolidJS) compile templates into fine-grained native DOM mutations, achieving faster execution with zero Virtual DOM overhead.
+  3. **Cognitive Overhead & Hook Footguns:**
+     - Vanilla JS or simpler reactive libraries avoid React's nuances (e.g. hook rules, dependency array bugs, stale closures, and unintentional re-render cascades).
+
+---
+
+#### 2. If this app needed to support users on very low-end devices or poor connections as a hard requirement, would you stick with SPA or change the architecture? Why or why not?
+
+- **The Architectural Verdict:**
+  **We would change the architecture away from a pure Client-Side Rendered (CSR) SPA.**
+
+- **Why a CSR SPA fails on low-end devices & poor connections:**
+  1. **The Sequential Network Waterfall:**
+     As demonstrated in Demo 2, our CSR SPA requires multiple sequential network round trips before rendering anything:
+     $$\text{HTML shell} \longrightarrow \text{JS bundles (150KB+)} \longrightarrow \text{JSON data files} \longrightarrow \text{Dynamic view templates}$$
+     On a poor 2G/3G mobile network with high latency (e.g. 400ms+ round-trip time) and packet loss, this multi-stage waterfall can take **15 to 30 seconds** before the first readable pixel appears.
+  2. **Device Hardware Bottlenecks (CPU & RAM):**
+     Low-end devices (budget phones or legacy terminals with 1 GB RAM and low-tier CPUs) struggle with JavaScript parsing, bytecode compilation, and garbage collection. Decompressing and executing megabytes of JS chokes the main thread, causing severe input lag, battery drain, and out-of-memory crashes.
+
+- **What architecture we would adopt instead:**
+  - **Server-Side Rendering (SSR) with Progressive Enhancement (or Islands Architecture, e.g. Astro / Remix):**
+    - **Instant First Paint:** The server pre-renders complete, readable HTML for the case details and evidence logs. On Round Trip 1, even the slowest phone displays readable content immediately with near-zero CPU effort.
+    - **Selective / Partial Hydration:** JavaScript is shipped **only** for the interactive controls that strictly require it (e.g. the confidence slider or bookmark star), reducing client JS payloads from hundreds of kilobytes down to under 10–15 KB.
+    - **Graceful Fallback:** Basic navigation and filtering can fall back to standard HTML `<form action="/evidence" method="GET">` queries if JavaScript fails entirely.
+
+
 
 
 

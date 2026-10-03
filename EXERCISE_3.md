@@ -30,7 +30,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | 5 | React introduction | ☑ |
 | 6 | React + TypeScript entry point in the Vite project | ☑ |
 | 7 | Component hierarchy for the whole app | ☑ |
-| 8 | Architecture Decision Record: why SPA/React | ☐ |
+| 8 | Architecture Decision Record: why SPA/React | ☑ |
 | 9 | Migrate the application shell | ☐ |
 | 10 | Migrate the Dashboard view | ☐ |
 
@@ -149,13 +149,13 @@ renders *something* visible, without removing the working vanilla app yet.
 
 **Tasks**
 
-- [ ] Argue whether an SPA built with React is actually the right architecture for *this specific app*, given what it does.
-- [ ] Include honest trade-offs or downsides of the SPA/React choice for this app, not just the benefits.
+- [x] Argue whether an SPA built with React is actually the right architecture for *this specific app*, given what it does.
+- [x] Include honest trade-offs or downsides of the SPA/React choice for this app, not just the benefits.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What would you lose by keeping this app as server-rendered vanilla HTML/JS instead? What would you lose by choosing React specifically over a *different* SPA approach (e.g. vanilla JS with a router, or a lighter library)?
-- [ ] If this app needed to support users on very low-end devices or poor connections as a hard requirement, would you stick with SPA or change the architecture? Why or why not?
+- [x] What would you lose by keeping this app as server-rendered vanilla HTML/JS instead? What would you lose by choosing React specifically over a *different* SPA approach (e.g. vanilla JS with a router, or a lighter library)?
+- [x] If this app needed to support users on very low-end devices or poor connections as a hard requirement, would you stick with SPA or change the architecture? Why or why not?
 
 ---
 

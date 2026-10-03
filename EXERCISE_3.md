@@ -29,7 +29,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 | 4 | SPA vs. MPA: state & routing | ☑ |
 | 5 | React introduction | ☑ |
 | 6 | React + TypeScript entry point in the Vite project | ☑ |
-| 7 | Component hierarchy for the whole app | ☐ |
+| 7 | Component hierarchy for the whole app | ☑ |
 | 8 | Architecture Decision Record: why SPA/React | ☐ |
 | 9 | Migrate the application shell | ☐ |
 | 10 | Migrate the Dashboard view | ☐ |
@@ -134,14 +134,14 @@ renders *something* visible, without removing the working vanilla app yet.
 
 **Tasks**
 
-- [ ] Design and diagram a proposed component hierarchy for the **entire application**, not just the part you're building this exercise. E.g. pages (one per current view) and the reusable components you expect to extract (cards, badges, buttons, form controls, etc.), even though most of them won't be built until Exercises 4 and 5.
-- [ ] For at least 5 components in your diagram, briefly note what data/props each one would need and where that data comes from.
+- [x] Design and diagram a proposed component hierarchy for the **entire application**, not just the part you're building this exercise. E.g. pages (one per current view) and the reusable components you expect to extract (cards, badges, buttons, form controls, etc.), even though most of them won't be built until Exercises 4 and 5.
+- [x] For at least 5 components in your diagram, briefly note what data/props each one would need and where that data comes from.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What criteria did you use to decide something should be its own component versus staying inline inside a bigger one?
-- [ ] Pick one component in your diagram that appears in more than one place in the app. What made you extract it instead of duplicating its markup, and how does that compare to how the original vanilla app handled (or didn't handle) that same duplication?
-- [ ] Your diagram includes components you won't build until later exercises. Why is it useful to design the whole hierarchy now rather than only diagramming what you're about to build?
+- [x] What criteria did you use to decide something should be its own component versus staying inline inside a bigger one?
+- [x] Pick one component in your diagram that appears in more than one place in the app. What made you extract it instead of duplicating its markup, and how does that compare to how the original vanilla app handled (or didn't handle) that same duplication?
+- [x] Your diagram includes components you won't build until later exercises. Why is it useful to design the whole hierarchy now rather than only diagramming what you're about to build?
 
 ---
 

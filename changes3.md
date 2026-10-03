@@ -769,6 +769,153 @@ To enable native React and TypeScript JSX/TSX compilation, we performed the foll
   2. **High Regression Risk:** Migrating everything at once prevents isolated testing and makes debugging root causes nearly impossible.
   3. **All-or-Nothing Delivery:** If a bug occurs during migration, the entire project is blocked from shipping or being demonstrated.
 
+---
+
+## Demo 7 — Component hierarchy for the whole app
+
+### Tasks
+
+#### 1. Proposed Component Hierarchy Diagram for the Entire Application
+
+The following diagram maps out the complete target React component architecture for all five views and shared layout primitives across the portal:
+
+```mermaid
+graph TD
+    App["App (Root Shell)"]
+    App --> AppHeader["AppHeader"]
+    App --> LoadingOverlay["LoadingOverlay"]
+    App --> PageContainer["Main Content / Router Switch"]
+    App --> AppFooter["AppFooter"]
+
+    AppHeader --> Brand["Brand (Logo & Title)"]
+    AppHeader --> Nav["MainNavigation"]
+    Nav --> NavButton["NavButton (x6 views)"]
+
+    PageContainer --> DashboardPage["DashboardPage"]
+    PageContainer --> EvidencePage["EvidencePage"]
+    PageContainer --> PeopleLocationsPage["PeopleLocationsPage"]
+    PageContainer --> TimelinePage["TimelinePage"]
+    PageContainer --> WorkspacePage["WorkspacePage"]
+
+    %% Dashboard Subtree
+    DashboardPage --> CaseSummaryCard["CaseSummaryCard"]
+    CaseSummaryCard --> Badge1["Badge (Status)"]
+    DashboardPage --> StatGrid["StatGrid"]
+    StatGrid --> StatCard["StatCard (x3: Evidence, Leads, Events)"]
+    DashboardPage --> ProgressBar["ProgressBar (Review Progress)"]
+    DashboardPage --> RecentEvidence["RecentEvidenceList"]
+    RecentEvidence --> EvidenceCard1["EvidenceCard (Compact)"]
+    DashboardPage --> RecentTimeline["RecentTimelineList"]
+    RecentTimeline --> TimelineItem1["TimelineItem (Summary)"]
+
+    %% Evidence Subtree
+    EvidencePage --> EvidenceFilterBar["EvidenceFilterBar"]
+    EvidenceFilterBar --> SearchInput["SearchInput"]
+    EvidenceFilterBar --> SelectDropdown["SelectDropdown (Type, Person, Location, Status, Sort)"]
+    EvidencePage --> EvidenceList["EvidenceList"]
+    EvidenceList --> EvidenceCard2["EvidenceCard (Full)"]
+    EvidenceCard2 --> BookmarkButton["BookmarkButton"]
+    EvidenceCard2 --> Badge2["Badge (Critical, Status, Relevance)"]
+    EvidenceCard2 --> TagChip["TagChip"]
+    EvidencePage --> EvidenceDetailModal["EvidenceDetailModal"]
+    EvidenceDetailModal --> ModalWrapper1["Modal (Reusable Backdrop & Shell)"]
+    EvidenceDetailModal --> NotesEditor["NotesEditor (Textarea & Save)"]
+
+    %% People & Locations Subtree
+    PeopleLocationsPage --> TabSwitcher["TabSwitcher (People / Locations)"]
+    PeopleLocationsPage --> PeopleGrid["PeopleGrid"]
+    PeopleGrid --> PersonCard["PersonCard"]
+    PersonCard --> Badge3["Badge (Role/Status)"]
+    PeopleLocationsPage --> LocationsGrid["LocationsGrid"]
+    LocationsGrid --> LocationCard["LocationCard"]
+    PeopleLocationsPage --> PersonModal["PersonDetailModal"]
+    PersonModal --> ModalWrapper2["Modal"]
+
+    %% Timeline Subtree
+    TimelinePage --> TimelineFilterBar["TimelineFilterBar"]
+    TimelinePage --> TimelineStream["TimelineStream"]
+    TimelineStream --> TimelineItem2["TimelineItem"]
+    TimelineItem2 --> Badge4["Badge (Category)"]
+    TimelinePage --> TimelineModal["TimelineEventModal"]
+    TimelineModal --> ModalWrapper3["Modal"]
+
+    %% Workspace Subtree
+    WorkspacePage --> BookmarksList["BookmarksSidebar"]
+    BookmarksList --> MiniItem["MiniEvidenceItem"]
+    MiniItem --> BookmarkButton2["BookmarkButton"]
+    WorkspacePage --> NotesSummary["NotesSummaryList"]
+    WorkspacePage --> HypothesisBuilder["HypothesisBuilder"]
+    HypothesisBuilder --> FormSelect["FormSelect (Suspect, Nature)"]
+    HypothesisBuilder --> ConfidenceSlider["ConfidenceSlider (Range Input)"]
+    HypothesisBuilder --> FormTextarea["FormTextarea (Explanation, Alternative)"]
+    HypothesisBuilder --> SaveAlert["SavedNotificationAlert"]
+```
+
+---
+
+#### 2. Component Data & Props Specifications (5 Representative Components)
+
+| Component | Props & Types | Data Source |
+|---|---|---|
+| **1. `EvidenceCard`** | <ul><li>`evidence: EvidenceItem` (id, title, summary, timestamp, type, status, relevance, tags)</li><li>`isBookmarked: boolean`</li><li>`onToggleBookmark: (id: string) => void`</li><li>`onSelect: (id: string) => void`</li><li>`compact?: boolean`</li></ul> | `evidence` comes from the active filtered list; `isBookmarked` is derived from global bookmarks state (`state.bookmarks.includes(id)`); handlers trigger state updates. |
+| **2. `StatCard`** | <ul><li>`label: string`</li><li>`value: number \| string`</li><li>`description?: string`</li><li>`icon?: string`</li><li>`variant?: 'primary' \| 'warn' \| 'ok'`</li></ul> | Calculated/derived values computed in parent (`DashboardPage`): derived from `allEvidence.length`, count of active leads, and timeline events count. |
+| **3. `Badge`** | <ul><li>`label: string`</li><li>`variant: 'critical' \| 'flagged' \| 'reviewed' \| 'unreviewed' \| 'relevant' \| 'neutral'`</li><li>`size?: 'sm' \| 'md'`</li></ul> | Passed directly from parent items based on entity attributes (e.g. `evidence.status`, `caseData.status`, or `person.role`). |
+| **4. `Modal`** | <ul><li>`isOpen: boolean`</li><li>`title: string`</li><li>`onClose: () => void`</li><li>`children: React.ReactNode`</li><li>`maxWidth?: string`</li></ul> | `isOpen` is controlled by parent page state (e.g. `selectedEvidenceId !== null`); `onClose` resets the selection state to `null`. |
+| **5. `HypothesisBuilder`** | <ul><li>`people: Person[]`</li><li>`evidence: EvidenceItem[]`</li><li>`initialDraft: HypothesisDraft`</li><li>`onSave: (draft: HypothesisDraft) => void`</li></ul> | `people` and `evidence` passed down from root/loaded datasets; `initialDraft` loaded from `localStorage` (`STORAGE_KEY_HYPOTHESIS`); `onSave` persists to `localStorage`. |
+
+---
+
+### Questions
+
+#### 1. What criteria did you use to decide something should be its own component versus staying inline inside a bigger one?
+
+We used four primary architectural criteria:
+
+1. **Reusability & DRY (Don't Repeat Yourself):**
+   - If a piece of UI markup and styling is used in two or more distinct locations (such as `Badge`, `Modal`, `EvidenceCard`, and `BookmarkButton`), extracting it prevents duplicate markup and ensures consistent design system tokens across views.
+2. **Encapsulated State & Complex Logic:**
+   - If an element manages its own internal state, user events, or side effects (such as `ConfidenceSlider` managing a range input, `NotesEditor` handling draft inputs, or `EvidenceFilterBar` handling 6 input dropdowns), keeping it inline clutters the parent page. Extracting it keeps the parent clean and gives the sub-feature a single, isolated responsibility.
+3. **Render Performance & Re-render Isolation:**
+   - In React, when state changes, the component owning that state and all its children re-render. By isolating localized interactive controls (e.g., clicking a bookmark star or typing in a search bar) into their own child components, we can prevent expensive re-renders of the entire page layout.
+4. **Declarative Readability & Maintainability:**
+   - A parent page composed of clear, semantic component tags (`<CaseSummaryCard />`, `<StatGrid />`, `<ProgressBar />`, `<RecentEvidenceList />`) can be understood in seconds, whereas a single 600-line monolithic file of nested `<div>`s and inline string interpolations is difficult to maintain and test.
+
+---
+
+#### 2. Pick one component in your diagram that appears in more than one place in the app. What made you extract it instead of duplicating its markup, and how does that compare to how the original vanilla app handled (or didn't handle) that same duplication?
+
+- **Chosen Component: `<Badge />`**
+  - **Where it appears across the app:**
+    1. Case Summary status on the Dashboard (`FLAGGED`)
+    2. Evidence card status badges (`reviewed`, `flagged`, `unreviewed`)
+    3. Evidence card relevance badges (`relevant`, `unreviewed`)
+    4. Critical incident tags (`badge-critical`)
+    5. People status & roles in People & Locations
+    6. Timeline event category tags
+    7. Evidence detail modal header
+- **Why we extracted it:**
+  - A badge is a core visual indicator across every single view. Extracting it into `<Badge variant={status} label={label} />` encapsulates the CSS class mappings, color tokens, and accessibility attributes in **one single component**. If a badge style changes or a new status is added, we edit one line in one file rather than hunting across the codebase.
+- **How the original vanilla app handled (or failed to handle) this duplication:**
+  - In `app.js`, badge creation was fragmented and inconsistent:
+    - Evidence list used custom string-helper functions: `getStatusBadgeClass(status)` and `getRelevanceBadgeClass(relevance)`.
+    - Dashboard hardcoded strings directly: `'<span class="badge badge-flagged">' + caseData.status + '</span>'`.
+    - Timeline modal hardcoded different span tags with inline class concatenation.
+    - If a developer wanted to change how "Critical" or "Reviewed" was displayed, they had to modify 4 different string concatenation functions across `dashboard/script.js`, `evidence/script.ts`, `timeline/script.ts`, and `app.js`. Inevitably, this led to subtle visual discrepancies and styling bugs.
+
+---
+
+#### 3. Your diagram includes components you won't build until later exercises. Why is it useful to design the whole hierarchy now rather than only diagramming what you're about to build?
+
+1. **Top-Down State & Prop Contract Architecture:**
+   - Designing the entire application now reveals the data dependencies upfront. We immediately see that `evidence`, `bookmarks`, and `notes` are shared across **Dashboard**, **Evidence**, and **Workspace**. Designing the whole tree ensures our state architecture in Exercises 3 and 4 won't have to be completely torn down or refactored when we build the Workspace in Exercise 5.
+2. **Preventing Premature / Redundant Component Creation:**
+   - If we only designed the Dashboard today, we might build a narrow `DashboardEvidenceItem`. Later in Exercise 4, we would build a separate `EvidenceCard`. By viewing the whole app, we recognize upfront that both views are rendering the exact same entity with slight style variations (e.g. `compact?: boolean`), allowing us to create a unified, reusable component from day one.
+3. **Clear Boundary Definition for Gradual Migration:**
+   - A complete architectural blueprint clarifies where the boundary lies between legacy vanilla code and modern React components during the transitional phases. It makes it easy to replace views page-by-page without breaking the shell or global state.
+4. **Team Collaboration & Roadmapping:**
+   - In a real engineering team, having the entire component hierarchy mapped out allows multiple developers to parallelize work—one developer can work on atomic primitives (`Badge`, `Button`, `Modal`), while others implement page shells or data fetchers, adhering to agreed-upon prop interfaces.
+
+
 
 
 

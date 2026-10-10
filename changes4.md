@@ -310,3 +310,75 @@ When `locationNames` is an empty array (`length === 0`), the user would see a st
 - When we need to show nothing, we return `null` or let conditional expressions evaluate to `false` / `null` so no unwanted wrapper elements pollute the DOM.
 - When an empty state needs to communicate information to the user (such as *"No timeline events match the current filters"*), we return a semantic `<div className="empty-state"><p>...</p></div>` with meaningful instructional text rather than a blank div.
 
+---
+
+## Demo 3 — Rendering collections
+
+### Tasks
+
+#### 1. Rendered People, Locations, and Timeline collections as mapped components with proper keys
+
+We mapped all three collections from raw data arrays to declarative component trees using JavaScript's `.map()` array method:
+
+1. **People Collection:**
+   - In [PeopleList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleList.tsx):
+     ```tsx
+     <div className="people-grid">
+       {people.map((person) => (
+         <PersonCard
+           key={person.id}
+           person={person}
+           evidenceCount={evidenceCount}
+           onViewEvidence={onViewEvidence}
+         />
+       ))}
+     </div>
+     ```
+   - Each rendered item uses `person.id` (e.g. `'patch-vector'`, `'maya-lin'`) as its stable, unique key.
+
+2. **Locations Collection:**
+   - In [LocationsList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/LocationsList.tsx):
+     ```tsx
+     <div className="locations-grid">
+       {locations.map((loc) => (
+         <LocationCard key={loc.id} location={loc} />
+       ))}
+     </div>
+     ```
+   - Each rendered item uses `loc.id` (e.g. `'LOC-01'`, `'LOC-02'`) as its unique key.
+
+3. **Timeline Events Collection:**
+   - In [TimelineList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineList.tsx):
+     ```tsx
+     <div className="timeline-container">
+       {events.map((event) => (
+         <TimelineEventCard
+           key={event.id}
+           event={event}
+           locationNames={locationNames}
+           onViewEvidence={onViewEvidence}
+         />
+       ))}
+     </div>
+     ```
+   - Each rendered item uses `event.id` (e.g. `'evt-01'`, `'evt-02'`) as its unique key.
+
+---
+
+### Questions
+
+#### 1. What does React actually use `key` for internally?
+
+1. **Persistent Identity Across Renders:**
+   Inside React's reconciliation engine (Fiber architecture), `key` provides a **stable identifier that binds a Virtual DOM node to its underlying real DOM node and internal component state across consecutive renders**.
+2. **Reconciliation & Diffing Optimization:**
+   When a parent re-renders, React receives a new array of children. React needs to determine what changed between the old list of Virtual DOM elements and the new list.
+   - **Without keys (or using array indices):** React compares elements purely by index position (0 to 0, 1 to 1). If an item is prepended at index 0, React sees that position 0 now has different props, position 1 has different props, and so on. React will unnecessarily mutate every single DOM node in the entire list and create a new node at the end.
+   - **With stable keys:** React matches old nodes with new nodes by their key (`oldFiber.key === newFiber.key`). Even if the items have moved, sorted, or filtered:
+     - React recognizes that an item moved from index 0 to index 4, and performs a single efficient DOM `.insertBefore()` operation instead of rebuilding it.
+     - New keys mount new DOM elements.
+     - Removed keys are cleanly unmounted and destroyed.
+3. **Preserving Component State and Focus:**
+   `key` informs React which component instance should retain its local state (such as input focus, form field values, CSS transitions, and hook state). Changing an item's key signals to React that the item has been replaced with a completely different entity, resetting its local state.
+
+

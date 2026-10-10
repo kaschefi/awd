@@ -29,7 +29,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 |---|---|---|
 | 1 | JSX, function components, typed props, composition & children | ☑ |
 | 2 | Conditional rendering | ☑ |
-| 3 | Rendering collections | ☐ |
+| 3 | Rendering collections | ☑ |
 | 4 | Stable keys and list identity | ☐ |
 | 5 | Presentational vs. feature components and component boundaries | ☐ |
 | 6 | Feature-oriented folder structure | ☐ |
@@ -69,18 +69,17 @@ each with an explicitly typed props interface/type (no untyped or `any` props).
 - [x] Show one place where you used `condition && <Component />}` instead of a ternary. What would go wrong if `condition` were a number like `0` instead of a boolean and does that risk apply to your actual code?
 - [x] Why might returning `null` from a component be preferable to returning an empty `<div>` in some cases? Did you use either, and why?
 
-
 ---
 
 ## Demo 3 — Rendering collections
 
 **Tasks**
 
-- [ ] Render the people list, the locations list, and the timeline events list, each as a mapped collection of components, each with a proper `key` prop.
+- [x] Render the people list, the locations list, and the timeline events list, each as a mapped collection of components, each with a proper `key` prop.
 
 **Questions** (depend on the tasks above)
 
-- [ ] What does React actually use `key` for internally?
+- [x] What does React actually use `key` for internally?
 
 ---
 

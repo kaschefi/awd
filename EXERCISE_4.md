@@ -28,7 +28,7 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 
 | # | Demo | Ready? |
 |---|---|---|
-| 1 | JSX, function components, typed props, composition & children | ☐ |
+| 1 | JSX, function components, typed props, composition & children | ☑ |
 | 2 | Conditional rendering | ☐ |
 | 3 | Rendering collections | ☐ |
 | 4 | Stable keys and list identity | ☐ |
@@ -45,16 +45,17 @@ These checkboxes are for self-checking. Don't forget to do the actual checking o
 
 **Tasks**
 
-- [ ] Build at least 3 small components for the People & Locations or Timeline views using JSX,
+- [x] Build at least 3 small components for the People & Locations or Timeline views using JSX,
 each with an explicitly typed props interface/type (no untyped or `any` props).
-- [ ] Build at least one component that takes `children` (composition) rather than a data prop, and use it in a real place in the app (e.g. a generic card/panel wrapper).
+- [x] Build at least one component that takes `children` (composition) rather than a data prop, and use it in a real place in the app (e.g. a generic card/panel wrapper).
 
 **Questions** (depend on the tasks above)
 
-- [ ] Show one JSX expression in your code that embeds a JavaScript value or expression (not just static markup). For example `{person.name}` or a computed value. What can and can't go inside `{...}` in JSX?
-- [ ] For one component's typed props: what would TypeScript catch if you passed the wrong shape of data to it? Demonstrate a real type error by passing something wrong on purpose.
-- [ ] What's the difference between passing data as a named prop versus passing it as `children`? Why did you choose `children` for the component you built with it?
-- [ ] Why does direct DOM manipulation (as the old vanilla `app.js` did constantly, e.g. `innerHTML`, `classList.add/remove`, manually building elements) conflict with React's rendering model? What assumption does React make about who "owns" the DOM that direct manipulation breaks?
+- [x] Show one JSX expression in your code that embeds a JavaScript value or expression (not just static markup). For example `{person.name}` or a computed value. What can and can't go inside `{...}` in JSX?
+- [x] For one component's typed props: what would TypeScript catch if you passed the wrong shape of data to it? Demonstrate a real type error by passing something wrong on purpose.
+- [x] What's the difference between passing data as a named prop versus passing it as `children`? Why did you choose `children` for the component you built with it?
+- [x] Why does direct DOM manipulation (as the old vanilla `app.js` did constantly, e.g. `innerHTML`, `classList.add/remove`, manually building elements) conflict with React's rendering model? What assumption does React make about who "owns" the DOM that direct manipulation breaks?
+
 
 ---
 

@@ -4,7 +4,9 @@ import { Footer } from './components/Footer';
 import { StubView } from './components/StubView';
 import { NotFoundView } from './components/NotFoundView';
 import { DashboardView } from './components/dashboard/DashboardView';
-import { ViewKey } from './types/navigation';
+import { ViewKey } from './types/navigation.js';
+import { PeopleLocationsView } from './components/people_locations/PeopleLocationsView.js';
+import { TimelineView } from './components/timeline/TimelineView.js';
 
 function extractViewFromHash(hash: string): { isReact: boolean; view: string } {
   const clean = hash.replace(/^#\/?/, '').trim();
@@ -65,24 +67,22 @@ export const App: React.FC = () => {
         );
       case 'people':
         return (
-          <StubView
-            viewId="people"
-            title="People & Locations"
-            icon=""
-            description="Review clinical personnel profiles, engineering team logs, and facility floorplans."
-            onOpenInVanilla={handleOpenInVanilla}
+          <PeopleLocationsView
+            onNavigateToEvidence={(personId) => {
+              window.location.hash = 'evidence';
+              setTimeout(() => {
+                const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
+                if (filterEl) {
+                  filterEl.value = personId;
+                  filterEl.dispatchEvent(new Event('change'));
+                }
+              }, 50);
+            }}
           />
         );
       case 'timeline':
-        return (
-          <StubView
-            viewId="timeline"
-            title="Investigation Timeline"
-            icon=""
-            description="Chronological reconstruction of events leading up to the robot malfunction."
-            onOpenInVanilla={handleOpenInVanilla}
-          />
-        );
+        return <TimelineView />;
+
       case 'workspace':
         return (
           <StubView

@@ -190,3 +190,123 @@ TypeScript catches these discrepancies statically at build/compile time inside t
    - **Catastrophic Runtime Crashes:** If vanilla code removes an element that React expects to be present, React will attempt to execute operations like `parentNode.insertBefore(...)` on a missing node, triggering fatal runtime errors such as:
      `NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.`
    - **Event Listener Leaks:** React uses a synthetic event system attached at the root. Direct manual DOM destruction can bypass React's cleanup handlers, resulting in orphaned listeners and memory leaks.
+
+---
+
+## Demo 2 — Conditional rendering
+
+### Tasks
+
+#### 1. Implemented real conditional-rendering cases in migrated views
+
+We implemented multiple real-world conditional rendering scenarios across the migrated views:
+
+1. **Empty State Conditional Rendering:**
+   - In [TimelineList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineList.tsx), when zero events match the current filter selection (`events.length === 0`), we conditionally render an empty state message instead of an empty timeline axis:
+     ```tsx
+     if (events.length === 0) {
+       return (
+         <div className="empty-state">
+           <p>No timeline events match the current filters.</p>
+         </div>
+       );
+     }
+     ```
+   - Similarly, [PeopleList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleList.tsx) and [LocationsList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/LocationsList.tsx) guard against empty arrays by displaying `<p className="empty-state">No people registered.</p>`.
+
+2. **State-Dependent Style and Label Conditional Rendering:**
+   - In [PeopleLocationsView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleLocationsView.tsx), the active navigation tab receives the `.active` CSS class conditionally based on `activeTab`:
+     ```tsx
+     <button
+       type="button"
+       className={`tab-btn ${activeTab === 'people' ? 'active' : ''}`}
+       onClick={() => setActiveTab('people')}
+     >
+       Personnel ({people.length})
+     </button>
+     ```
+   - In [TimelineEventCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineEventCard.tsx), certainty badge variants (`confirmed`, `contradictory`, `reported`) dynamically determine CSS styling using the mapping helper `certaintyBadgeClass(event.certainty)`.
+
+---
+
+#### 2. Applied multiple distinct conditional-rendering techniques
+
+We utilized four distinct conditional rendering techniques:
+
+1. **Early Return:**
+   - Used in `TimelineList.tsx` for the empty state. Guarding early keeps the happy path uncluttered and avoids deep JSX indentation.
+2. **Logical AND (`&&`):**
+   - Used in `TimelineEventCard.tsx` to conditionally display optional metadata only when items exist:
+     ```tsx
+     {locationNames.length > 0 && (
+       <p className="evidence-meta">Location: {locationNames.join(', ')}</p>
+     )}
+     ```
+     and for evidence quick-view buttons:
+     ```tsx
+     {event.evidenceIds && event.evidenceIds.length > 0 && (
+       <div>{event.evidenceIds.map(...)}</div>
+     )}
+     ```
+3. **Ternary Operator (`? :`):**
+   - Used in `PeopleLocationsView.tsx` to switch between `<PeopleList />` and `<LocationsList />`:
+     ```tsx
+     {activeTab === 'people' ? (
+       <PeopleList people={people} onViewEvidence={onNavigateToEvidence} />
+     ) : (
+       <LocationsList locations={locations} />
+     )}
+     ```
+   - Used in `PersonCard.tsx` for grammar plurality: `{evidenceCount === 1 ? '' : 's'}` and for rendering either a button or a fallback `(none)` label.
+4. **Lookup / Mapping Function:**
+   - Used in `TimelineEventCard.tsx` via `certaintyBadgeClass(certainty)`, which maps categorical certainty strings to badge CSS classes (`reviewed`, `critical`, `flagged`).
+
+---
+
+### Questions
+
+#### 1. Show one place where you used `condition && <Component />` instead of a ternary. What would go wrong if `condition` were a number like `0` instead of a boolean, and does that risk apply to your actual code?
+
+**Example from our code (`TimelineEventCard.tsx`):**
+```tsx
+{locationNames.length > 0 && (
+  <p className="evidence-meta">Location: {locationNames.join(', ')}</p>
+)}
+```
+
+**What goes wrong if `condition` is `0`:**
+In JavaScript, the logical AND (`&&`) operator performs short-circuit evaluation:
+- If the left operand is falsy, JavaScript returns the value of the left operand itself, NOT the boolean `false`.
+- Therefore, `0 && <Component />` evaluates to `0`.
+- In React JSX, booleans (`true`, `false`), `null`, and `undefined` are completely ignored and render nothing to the DOM.
+- However, the number `0` is a valid React text node! React will treat it as printable text and will literally render `"0"` onto the user's screen.
+For example, if we had written:
+```tsx
+{locationNames.length && (
+  <p className="evidence-meta">Location: ...</p>
+)}
+```
+When `locationNames` is an empty array (`length === 0`), the user would see a stray, confusing `"0"` printed right on the timeline card!
+
+**Does this risk apply to our actual code?**
+**No.** We proactively prevented this bug by writing `locationNames.length > 0`. Because comparison operators (`>`) strictly evaluate to a boolean (`true` or `false`), when `length` is 0 the left operand evaluates to `false`. React ignores `false`, so nothing is rendered.
+
+---
+
+#### 2. Why might returning `null` from a component be preferable to returning an empty `<div>` in some cases? Did you use either, and why?
+
+**Why returning `null` is preferable to an empty `<div>`:**
+1. **No Phantom DOM Nodes:**
+   Returning `null` tells React: *"Do not mount anything in the DOM for this component."*
+   Returning `<div />` creates an actual, physical `HTMLDivElement` in the real browser DOM.
+2. **Preserving CSS Layouts (Flexbox & CSS Grid):**
+   If a parent container uses `display: flex` with `gap: 12px`, or `display: grid`, every child element (even an empty `<div></div>` with 0 width and height) is treated as a grid item or flex item. The empty `<div>` will create phantom spacing, unnecessary gaps, or shift other items out of alignment.
+3. **Preserving CSS Pseudo-Classes:**
+   CSS selectors such as `:empty`, `:first-child`, `:last-child`, and `:nth-child()` rely on exact DOM sibling structure. An invisible empty `<div>` breaks `:first-child` or prevents `:empty` from matching.
+4. **Accessibility (A11y):**
+   Screen readers and assistive technology traverse the DOM tree. Empty wrapper divs clutter the accessibility tree with meaningless nodes.
+
+**Did we use either, and why?**
+- When we need to show nothing, we return `null` or let conditional expressions evaluate to `false` / `null` so no unwanted wrapper elements pollute the DOM.
+- When an empty state needs to communicate information to the user (such as *"No timeline events match the current filters"*), we return a semantic `<div className="empty-state"><p>...</p></div>` with meaningful instructional text rather than a blank div.
+

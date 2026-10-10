@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { Person, Location } from '../../types.js';
 import { PeopleList } from './PeopleList.js';
 import { LocationsList } from './LocationsList.js';
-import { state } from '../../state.js';
+import { usePortalData } from '../../hooks/usePortalData.js';
 
 export interface PeopleLocationsViewProps {
   initialTab?: 'people' | 'locations';
@@ -13,14 +13,19 @@ export interface PeopleLocationsViewProps {
 
 export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
   initialTab = 'people',
-  people = state.allPeople,
-  locations = state.allLocations,
+  people: propPeople,
+  locations: propLocations,
   onNavigateToEvidence,
 }) => {
+  const portal = usePortalData();
+  const people = propPeople ?? portal.people;
+  const locations = propLocations ?? portal.locations;
+
   const [activeTab, setActiveTab] = useState<'people' | 'locations'>(initialTab);
 
+
   return (
-    <div className="people-locations-view">
+    <section className="view active" id="view-people">
       <div className="view-header">
         <h2>Personnel & Facility Locations</h2>
         <p className="view-subtitle">
@@ -52,6 +57,7 @@ export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
       ) : (
         <LocationsList locations={locations} />
       )}
-    </div>
+    </section>
+
   );
 };

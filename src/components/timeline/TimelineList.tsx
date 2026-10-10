@@ -20,7 +20,7 @@ export const TimelineList: React.FC<TimelineListProps> = ({ events, onViewEviden
 
   return (
     <div className="timeline-container">
-      {events.map((event) => {
+      {events.map((event, index) => {
         const locationNames = (event.locationIds || [])
           .map((locId) => {
             const loc = findLocationById(locId);
@@ -30,7 +30,7 @@ export const TimelineList: React.FC<TimelineListProps> = ({ events, onViewEviden
 
         return (
           <TimelineEventCard
-            key={event.id}
+            key={index}                   // here is the bug for demo 4.4
             event={event}
             locationNames={locationNames}
             onViewEvidence={onViewEvidence}
@@ -38,5 +38,8 @@ export const TimelineList: React.FC<TimelineListProps> = ({ events, onViewEviden
         );
       })}
     </div>
+
+
+
   );
 };

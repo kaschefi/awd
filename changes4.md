@@ -381,4 +381,81 @@ We mapped all three collections from raw data arrays to declarative component tr
 3. **Preserving Component State and Focus:**
    `key` informs React which component instance should retain its local state (such as input focus, form field values, CSS transitions, and hook state). Changing an item's key signals to React that the item has been replaced with a completely different entity, resetting its local state.
 
+---
 
+## Demo 4 — Stable keys and list identity
+
+### Tasks
+
+#### 1. Deliberately used `key={index}` in a throwaway example, demonstrated the visible state-corruption bug, and restored stable entity IDs
+
+We configured an interactive demonstration in [TimelineView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineView.tsx) and [TimelineList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineList.tsx):
+
+1. **Setup:**
+   - In `TimelineView`, we provided an Order sorting dropdown (**Oldest first** vs. **Newest first**).
+   - In `TimelineEventCard`, each card included an uncontrolled investigator note `<input placeholder="Note for {event.id}..." />`.
+2. **The `key={index}` Demonstration:**
+   - In `TimelineList.tsx`, we deliberately changed the mapping key from `key={event.id}` to `key={index}`:
+     ```tsx
+     {events.map((event, index) => (
+       <TimelineEventCard key={index} event={event} ... />
+     ))}
+     ```
+   - **User Action:** Under **Oldest first**, the first card was event **T01** (*"Patch raises a calibration-cache safety concern"*). We typed into its note input: `"NOTE BELONGS TO EVT 01"`.
+   - **Triggering Re-order:** We changed the dropdown to **Newest first**, reversing the array.
+   - **The Bug Observed Live:**
+     - The event at index 0 swapped to **T15** (*"The public demonstration is cancelled"*).
+     - However, the note input at the top STILL contained `"NOTE BELONGS TO EVT 01"`.
+     - React matched index `0` to index `0`, saw identical keys (`"0"` == `"0"`), and preserved the existing real DOM input element in place, updating only the text props of the card around it.
+     - The user's typed note was corrupted and transferred to the wrong event.
+3. **Restoring Stable Keys (`key={event.id}`):**
+   - We reverted `TimelineList.tsx` to use the permanent entity identifier:
+     ```tsx
+     {events.map((event) => (
+       <TimelineEventCard key={event.id} event={event} ... />
+     ))}
+     ```
+   - **Verification:** When repeating the test, typing a note on **T01** and sorting by **Newest first**:
+     - The top card (**T15**) showed an empty note input as expected.
+     - Card **T01** moved to the bottom of the page, carrying its note `"NOTE BELONGS TO EVT 01"` with it. React matched the DOM node by `key="T01"` and moved the node in the DOM rather than overwriting it in place.
+
+---
+
+### Questions
+
+#### 1. What goes wrong, concretely, when keys are missing, duplicated, or based on array index for a list that can reorder or filter?
+
+1. **Missing Keys (`key` omitted):**
+   - React falls back to using array index by default and logs a runtime console warning (*"Each child in a list should have a unique 'key' prop"*).
+   - Every insertion, deletion, or reorder forces React to mutate every DOM node from the point of change downward, resulting in degraded performance and state detachment.
+2. **Duplicated Keys (two siblings share `key="same-id"`):**
+   - React's reconciliation algorithm relies on unique keys to build a map (`Map<Key, Fiber>`) for O(N) lookup.
+   - When keys collide, React cannot distinguish between duplicate elements during diffing. React will emit a console error (*"Encountered two children with the same key"*). DOM nodes may fail to update, disappear during unmounting, or exhibit unpredictable rendering glitches.
+3. **Index Keys (`key={index}`) on lists that reorder, sort, or filter:**
+   - **State Corruption on Uncontrolled Inputs:** Form fields (`<input>`, `<textarea>`, checkboxes) hold their state in the browser DOM. Because React considers index `0` to always be the same component instance, form values stay at their index position instead of following the data item.
+   - **Broken Animations / Transitions:** CSS enter/leave transitions attach to DOM nodes. Reordering with index keys causes in-place text replacement rather than visual sliding/sorting animations.
+   - **Sub-tree State Misalignment:** If child components have internal `useState`, `useRef`, or `useEffect` timers, those internal states remain pinned to the index rather than the entity.
+
+---
+
+#### 2. The *original* vanilla version of this app had a real bug where one feature used an array index as an identifier instead of a stable id. Would that same mistake, ported directly into React as `key={index}`, have caused a symptom a user could notice, or only a console warning? Explain why.
+
+- **Yes, it would have caused a symptom a user could notice!**
+- In the original vanilla version of the app, evidence items were referenced in HTML templates via their array index (e.g. `data-index="${i}"`). When evidence was filtered by tag or sorted, clicking "Bookmark" on the first filtered card operated on `state.allEvidence[0]` instead of the actual clicked item, bookmarking the wrong item entirely.
+- In React, if list items are purely passive and stateless (only rendering immutable props into text nodes), `key={index}` causes a performance hit and extra DOM text updates, but the rendered text eventually matches the prop.
+- **However, as soon as interactive features exist:**
+  - Selecting an evidence card (which stores selected ID or modal state).
+  - Checking a bookmark star or checkbox.
+  - Adding investigator notes or expanding accordion cards.
+- With `key={index}`, filtering the list will leave checkboxes and input focus attached to the wrong item. A user filtering for "critical" items would see checkboxes checked that they never selected, or watch their expanded card collapse while an unrelated card expands. This is a severe, noticeable user-facing data corruption symptom, not just a benign console warning.
+
+---
+
+#### 3. All of this app's real data (people, locations, timeline events) already has stable ids. Is there ever a legitimate reason to use `key={index}` anyway? When?
+
+**Yes, but ONLY when all three of the following conditions are simultaneously met:**
+1. **The list is strictly static:** The array is never filtered, sorted, reordered, paginated, or mutated after initial render.
+2. **Items are purely presentational and stateless:** The items have no local `useState`, no uncontrolled form inputs (`<input>`, `<select>`), no `useRef`, and no internal component state.
+3. **The data has no natural unique identifier:** For instance, rendering a static list of bullet points from a fixed string array (e.g. `responsibilities: string[]` on `PersonCard` where items are static strings like `["Lead clinician", "Supervise safety protocols"]`), or static breadcrumbs, or a fixed pagination number strip (`[1, 2, 3, 4]`).
+
+Even in these cases, if the items are strings and unique, `key={string}` is preferable. `key={index}` should be treated as an explicit last resort.

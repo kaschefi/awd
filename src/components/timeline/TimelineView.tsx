@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { TimelineEvent, Person, Location } from '../../types.js';
 import { TimelineList } from './TimelineList.js';
 import { TimelineToolbar } from './TimelineToolbar.js';
@@ -16,7 +17,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   events: propEvents,
   people: propPeople,
   locations: propLocations,
-  selectedPersonFilter = '',
+  selectedPersonFilter: propPersonFilter = '',
   onViewEvidence,
 }) => {
   const portal = usePortalData();
@@ -24,15 +25,29 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const people = propPeople ?? portal.people;
   const locations = propLocations ?? portal.locations;
 
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  // Read URL query parameters on initial render (Demo 10)
+  const [searchParams] = useSearchParams();
+  const personQuery = searchParams.get('person') || propPersonFilter;
+  const locationQuery = searchParams.get('location') || '';
+  const typeQuery = searchParams.get('type') || '';
+  const initialOrder = (searchParams.get('order') as 'asc' | 'desc') || 'asc';
+
+  const [order, setOrder] = useState<'asc' | 'desc'>(initialOrder);
 
   // Extract unique event types
   const eventTypes = Array.from(new Set(events.map((e) => e.type).filter(Boolean)));
 
-  // If a filter was initially supplied via query param (prep for Demo 10)
-  const filtered = selectedPersonFilter
-    ? events.filter((e) => e.personIds && e.personIds.includes(selectedPersonFilter))
-    : events;
+  // Parameterize initial render based on URL query parameters
+  let filtered = events;
+  if (personQuery) {
+    filtered = filtered.filter((e) => e.personIds && e.personIds.includes(personQuery));
+  }
+  if (locationQuery) {
+    filtered = filtered.filter((e) => e.locationIds && e.locationIds.includes(locationQuery));
+  }
+  if (typeQuery) {
+    filtered = filtered.filter((e) => e.type === typeQuery);
+  }
 
   const displayedEvents = [...filtered].sort((a, b) => {
     const diff = new Date(a.time).getTime() - new Date(b.time).getTime();
@@ -51,7 +66,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       <TimelineToolbar
         order={order}
         onOrderChange={setOrder}
-        selectedPerson={selectedPersonFilter}
+        selectedPerson={personQuery}
+        selectedLocation={locationQuery}
+        selectedType={typeQuery}
         people={people}
         locations={locations}
         eventTypes={eventTypes}

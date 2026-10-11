@@ -956,3 +956,132 @@ We connected the application so users can navigate to these parameterized routes
 2. **Why a Route Parameter is more appropriate for this specific case:**
    - When an investigator clicks to inspect a specific person, they want to view that person's individual profile, statements, and background dossier, rather than a filtered search result of the team directory.
    - RESTful URL conventions dictate that individual resources take path parameters (`/people/:id`), whereas query parameters (`?filter=...`) are reserved for collection filtering and sorting (which is exactly what we use next in Demo 10 for filtering timeline events).
+
+---
+
+## Demo 10 — Query parameters as URL state + migration wrap-up
+
+### Tasks
+
+#### 1. Parameterized Timeline initial render using URL query parameters (`?person=...`)
+
+In [TimelineView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineView.tsx), we used React Router's `useSearchParams()` hook to read query parameters on page load:
+
+```tsx
+const [searchParams] = useSearchParams();
+const personQuery = searchParams.get('person') || propPersonFilter;
+const locationQuery = searchParams.get('location') || '';
+const typeQuery = searchParams.get('type') || '';
+const initialOrder = (searchParams.get('order') as 'asc' | 'desc') || 'asc';
+
+// Parameterize initial render based on URL query parameters
+let filtered = events;
+if (personQuery) {
+  filtered = filtered.filter((e) => e.personIds && e.personIds.includes(personQuery));
+}
+if (locationQuery) {
+  filtered = filtered.filter((e) => e.locationIds && e.locationIds.includes(locationQuery));
+}
+if (typeQuery) {
+  filtered = filtered.filter((e) => e.type === typeQuery);
+}
+```
+
+- When an investigator opens `http://localhost:5173/#/react/timeline?person=dr-elena-rostova`:
+  1. The initial timeline list only renders events involving Dr. Elena Rostova.
+  2. The dropdown `<select id="timelinePersonFilter">` in [TimelineToolbar.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineToolbar.tsx) receives `selectedPerson={personQuery}` and reflects "Dr. Elena Rostova".
+  3. In [PersonDetailView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonDetailView.tsx), we provided a direct deep link: `<Link to={`/timeline?person=${person.id}`}>Timeline Activity →</Link>`.
+- **Constraint respected:** The filter controls themselves do not manage mutable state or wire `onChange` handlers yet. The initial render is purely parameterized from the URL.
+
+---
+
+#### 2. Final verification pass across migrated views
+
+We conducted a thorough audit across the migrated application code:
+
+1. **Fully React (Zero Manual DOM / `innerHTML`):**
+   - Verified that `src/components/` contains **0 occurrences** of `innerHTML`, `outerHTML`, or `document.createElement()`.
+   - Every UI element is rendered using declarative JSX and React component composition.
+2. **All Migrated Views Reachable via Bookmarkable Routes:**
+   - **Dashboard:** `/#/react/dashboard`
+   - **Personnel Directory:** `/#/react/team/people`
+   - **Person Dossier (Parameterized Route):** `/#/react/team/people/:personId`
+   - **Facility Locations:** `/#/react/team/locations`
+   - **Chronological Timeline:** `/#/react/timeline` (and `/#/react/timeline?person=...`)
+   - **Unrecognized Routes (404 Fallback):** Wildcard catch-all renders `<NotFoundView />`.
+   - **Unmigrated Views (Stubs):** `/#/react/evidence` and `/#/react/workspace` render informative `<StubView />` containers that bridge to the legacy vanilla views for Exercise 5.
+3. **Clean Architecture & Folder Separation:**
+   - Feature-based structure (`common/`, `dashboard/`, `people_locations/`, `timeline/`) cleanly separates concerns and prevents monolithic coupling.
+   - Core reusable primitives (`Card`, `Badge`) are shared across 3+ feature contexts without leaking domain logic.
+
+---
+
+### Questions
+
+#### 1. Why is reading a query parameter once, on initial render, still consistent with this exercise's "no state beyond what's necessary to render the initial view" rule? What would cross the line into "real interactivity" that's out of scope until Exercise 5?
+
+1. **Why reading a query parameter on initial render is consistent:**
+   - A URL query parameter is **external input** provided to the component tree at mount time, fundamentally identical to an incoming `prop`.
+   - The initial render calculation is a pure, idempotent projection:
+     $$\text{Initial UI} = f(\text{Data}, \text{URL Query})$$
+   - It does not introduce mutable client-side state, event handling loops, or asynchronous state synchronization. It simply answers: *"Given this URL, what should the initial screen show?"*
+
+2. **What would cross the line into "real interactivity" (reserved for Exercise 5):**
+   - **Wiring `onChange` Event Listeners:** Attaching handlers to the `<select>` and `<input>` elements that intercept user clicks and keystrokes.
+   - **Local State Mutations (`useState`):** Updating state variables on every selection (`setPersonFilter(newVal)`), causing React to re-render the view in response to user events.
+   - **Two-Way URL Synchronization (`setSearchParams`):** Imperatively updating the browser address bar as the user interacts with the UI (`setSearchParams({ person: selectedId })`).
+   - **Search Input Debouncing and Form Validation:** Buffering keystrokes, clearing inputs, and managing dirty/pristine form flags.
+
+---
+
+#### 2. What would you need to add to make Timeline's filters *actually* filter the list when a user changes them? (You don't have to build it. Just name the concepts you'd need)
+
+To make Timeline's filters interactive, we would need:
+
+1. **State Management (`useState` or URL Search Params State):**
+   - State variables to store current filter selections:
+     ```tsx
+     const [personFilter, setPersonFilter] = useState(initialPerson);
+     const [locationFilter, setLocationFilter] = useState('');
+     const [typeFilter, setTypeFilter] = useState('');
+     ```
+2. **Synthetic Event Handlers (`onChange`):**
+   - Event callbacks passed to the `<select>` dropdowns in `TimelineToolbar`:
+     ```tsx
+     <select onChange={(e) => setPersonFilter(e.target.value)}>
+     ```
+3. **Reactive Re-filtering (Derived State):**
+   - A reactive pipeline (optionally memoized via `useMemo`) that recalculates the displayed list whenever any filter state variable updates:
+     ```tsx
+     const visibleEvents = useMemo(() => {
+       return events.filter(e => matchesFilters(e, personFilter, locationFilter, typeFilter));
+     }, [events, personFilter, locationFilter, typeFilter]);
+     ```
+4. **URL Synchronization (Optional Modern UX):**
+   - Calling `setSearchParams()` inside the change handlers so active filter states remain shareable and survive page refreshes.
+
+---
+
+#### 3. Across the 3 views you've now fully migrated, what's one piece of duplicated logic or markup you noticed but didn't extract yet? Why didn't you, and would you if you had more time?
+
+1. **Duplicated Markup / Logic Noticed:**
+   - **Standardized View Header Layout:**
+     In all three migrated views (`DashboardView`, `PeopleLocationsView`, `TimelineView`), there is an identical top header block:
+     ```tsx
+     <div className="view-header">
+       <h2>{title}</h2>
+       <p className="view-subtitle">{description}</p>
+     </div>
+     ```
+   - **Evidence Quick-View Action Buttons:**
+     Both `TimelineEventCard` and `PersonCard` construct buttons linking to evidence IDs (`View E01`, `View E02`) using an `onViewEvidence` callback.
+   - **Empty State Display Blocks:**
+     `TimelineList`, `PeopleList`, `LocationsList`, and `PersonDetailView` each author slightly different empty-state DOM wrappers (`<div className="empty-state"><p>...</p></div>`).
+
+2. **Why we didn't extract it yet:**
+   - **Avoiding Premature Abstraction (Rule of Three & YAGNI):** When migrating views step-by-step, rushing to create generic wrappers before knowing the full requirements of remaining views (Evidence Locker and Investigator Workspace in Exercise 5) leads to leaky abstractions with overly complex prop configurations.
+   - **Preserving Semantic Simplicity:** Simple HTML headings (`<h2>`, `<p className="view-subtitle">`) are clear, readable, and standard. Abstracting a 3-line heading block into a `<ViewHeader />` component adds indirection without substantial code savings.
+
+3. **Would we extract it with more time?**
+   - **Yes, for `<EmptyState />`:** Extracting an `<EmptyState icon={...} title={...} message={...} action={...} />` component would be highly beneficial. It would ensure consistent padding, muted typography, icon sizing, and accessibility ARIA roles across all presentational lists.
+   - **Yes, for Evidence Quick-View Links:** In Exercise 5, when the evidence modal is fully wired, extracting a shared `<EvidenceLinkButton evidenceId={...} onClick={...} />` component will ensure uniform badges and click tracking.

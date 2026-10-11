@@ -68,9 +68,18 @@ export const PersonDetailView: React.FC<PersonDetailViewProps> = ({
           gap: '8px',
         }}
       >
-        <Link to="/team/people" className="btn btn-secondary btn-small">
-          &larr; Back to all personnel ({people.length})
-        </Link>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <Link to="/team/people" className="btn btn-secondary btn-small">
+            &larr; Back to all personnel ({people.length})
+          </Link>
+          <Link
+            to={`/timeline?person=${person.id}`}
+            className="btn btn-secondary btn-small"
+            title={`View chronological timeline filtered by ${person.name}`}
+          >
+            Timeline Activity &rarr;
+          </Link>
+        </div>
         <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
           Profile ID: <code>{person.id}</code>
         </span>

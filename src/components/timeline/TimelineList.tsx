@@ -1,7 +1,7 @@
 import React from 'react';
 import type { TimelineEvent } from '../../types.js';
 import { TimelineEventCard } from './TimelineEventCard.js';
-import { findLocationById } from '../../lookup.js';
+import { findLocationById, findPersonById } from '../../lookup.js';
 
 export interface TimelineListProps {
   events: TimelineEvent[];
@@ -28,11 +28,18 @@ export const TimelineList: React.FC<TimelineListProps> = ({ events, onViewEviden
           })
           .filter(Boolean);
 
+        const persons = (event.personIds || [])
+          .map((pId) => {
+            const p = findPersonById(pId);
+            return p ? { id: p.id, name: p.name } : { id: pId, name: pId };
+          });
+
         return (
           <TimelineEventCard
             key={event.id}
             event={event}
             locationNames={locationNames}
+            persons={persons}
             onViewEvidence={onViewEvidence}
           />
         );

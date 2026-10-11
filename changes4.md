@@ -834,3 +834,125 @@ Making the tab a real route elevates UI navigation from transient in-memory comp
 
 
 
+
+---
+
+## Demo 9 — Route parameters
+
+### Tasks
+
+#### 1. Added a parameterized route (`/team/people/:personId`) and dedicated profile component
+
+We implemented a parameterized route in [PeopleLocationsView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleLocationsView.tsx) to support deep-linking to individual team member profiles:
+
+```tsx
+<Routes>
+  <Route
+    path="people"
+    element={<PeopleList people={people} onViewEvidence={onNavigateToEvidence} />}
+  />
+  <Route
+    path="people/:personId"
+    element={<PersonDetailView people={people} onViewEvidence={onNavigateToEvidence} />}
+  />
+  <Route path="locations" element={<LocationsList locations={locations} />} />
+  <Route path="" element={<Navigate to="people" replace />} />
+  <Route path="*" element={<Navigate to="people" replace />} />
+</Routes>
+```
+
+We created [PersonDetailView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonDetailView.tsx) to consume this parameter using React Router's `useParams()` hook:
+- Reads `const { personId } = useParams<{ personId: string }>();`
+- Looks up the matching `person` entity from the loaded people array.
+- Renders the person's detailed card, statement, responsibilities, evidence counts, and their extended **Background Dossier** (`person.background`).
+- Provides a clean navigation link `← Back to all personnel` returning to `/team/people`.
+- **Safe Fallback Guard:** If `personId` does not match any person in the dataset (e.g. `/team/people/unknown-id`), it gracefully renders a `Team Member Not Found` empty-state card with a recovery button, completely avoiding runtime null/undefined reference errors.
+
+---
+
+#### 2. Added deep links across the application to the parameterized route
+
+We connected the application so users can navigate to these parameterized routes naturally without typing URLs by hand:
+
+1. **From Person Cards ([PersonCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonCard.tsx)):**
+   - In the general personnel directory (`/team/people`), each card's title and a dedicated `View Dossier →` button link directly to `/team/people/${person.id}`.
+2. **From the Incident Timeline ([TimelineEventCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineEventCard.tsx) & [TimelineList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineList.tsx)):**
+   - Each chronological timeline event checks its associated `personIds`.
+   - In [TimelineList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineList.tsx), each ID is resolved to a person entity using `findPersonById()`.
+   - In [TimelineEventCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineEventCard.tsx), we display:
+     ```tsx
+     {persons.length > 0 && (
+       <p className="evidence-meta">
+         Involved personnel:{' '}
+         {persons.map((person, idx) => (
+           <span key={person.id}>
+             {idx > 0 && ', '}
+             <Link
+               to={`/team/people/${person.id}`}
+               title={`View profile for ${person.name}`}
+             >
+               {person.name}
+             </Link>
+           </span>
+         ))}
+       </p>
+     )}
+     ```
+   - Investigators reviewing timeline incidents (e.g. Server Room access, firmware deployments) can directly click any involved person's name to jump straight to their individual profile and statement.
+
+---
+
+### Questions
+
+#### 1. How do you read a route parameter's value inside your component, and what type is it as far as TypeScript is concerned by default? What did you have to do to use it safely (e.g. what if the id in the URL doesn't match any real person)?
+
+1. **How we read the route parameter:**
+   Inside [PersonDetailView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonDetailView.tsx), we use the `useParams` hook exported by `react-router-dom`:
+   ```tsx
+   import { useParams } from 'react-router-dom';
+
+   const { personId } = useParams<{ personId: string }>();
+   ```
+
+2. **Default TypeScript Type:**
+   By default, `useParams()` returns `Params<string>`, which TypeScript resolves as `Record<string, string | undefined>`.
+   Even when using generic typing like `useParams<{ personId: string }>()`, `personId` has the type **`string | undefined`**.
+   TypeScript intentionally makes every route param optional/possibly undefined because the component could be rendered outside a route matching that parameter, or the parameter might fail to match.
+
+3. **What we had to do to use it safely:**
+   - **Step A — Existence check & Lookup:** We ensure `personId` is provided before performing array lookup:
+     ```tsx
+     const person = personId ? people.find((p) => p.id === personId) : undefined;
+     ```
+   - **Step B — Guard against missing or invalid IDs:** If `person` is `undefined` (because someone entered a non-existent ID like `/team/people/ghost-user`), we do **not** attempt to access properties like `person.name` or `person.role` (which would trigger fatal `TypeError: Cannot read properties of undefined` crashes). Instead, we return an explicit, user-friendly fallback view:
+     ```tsx
+     if (!person) {
+       return (
+         <div className="card empty-state">
+           <h3>Team Member Not Found</h3>
+           <p>No team member found with identifier <code>{personId}</code>.</p>
+           <Link to="/team/people" className="btn btn-primary">
+             ← Back to all personnel
+           </Link>
+         </div>
+       );
+     }
+     ```
+
+---
+
+#### 2. What's the practical difference, for the user, between `/team/people/nova-byte` (a route param) and `/team/people?person=nova-byte` (a query param)? Why is one more appropriate than the other for this specific case?
+
+1. **Practical difference for the user:**
+   - **Route Parameter (`/team/people/nova-byte`):**
+     - Represents the **canonical identity of a specific, distinct resource** (a noun in the application hierarchy).
+     - The user expects a dedicated page or focused view showing the entity itself (Nova Byte's dossier, background, statements, and specific metadata).
+     - It creates a hierarchical mental model: `Application > Team > People > Nova Byte`.
+   - **Query Parameter (`/team/people?person=nova-byte`):**
+     - Represents a **filter, search parameter, or state modifier applied over a collection**.
+     - The user expects to remain in the general directory or list view, but with the list filtered to show items matching "nova-byte".
+     - Query parameters are typically optional, composable (`?person=nova-byte&sort=asc&role=lead`), and can be omitted without changing the core nature of the page.
+
+2. **Why a Route Parameter is more appropriate for this specific case:**
+   - When an investigator clicks to inspect a specific person, they want to view that person's individual profile, statements, and background dossier, rather than a filtered search result of the team directory.
+   - RESTful URL conventions dictate that individual resources take path parameters (`/people/:id`), whereas query parameters (`?filter=...`) are reserved for collection filtering and sorting (which is exactly what we use next in Demo 10 for filtering timeline events).

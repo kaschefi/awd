@@ -621,3 +621,90 @@ We created [ARCHITECTURE.md](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/W
    - It would make no sense on an unrelated page.
    - **Real Example:** `TimelineToolbar` in `src/components/timeline/TimelineToolbar.tsx`. It renders specific filter dropdowns for timeline event types and date sorting; it has no purpose or reusability outside the Timeline view.
 
+---
+
+## Demo 7 — Reusable UI elements
+
+### Tasks
+
+#### 1. Extracted presentational components genuinely reused in multiple places: `Card` and `Badge`
+
+We built **two** core reusable UI primitives in `src/components/common/` that standardize layout surfaces and categorical tags across the application without becoming a special-cased mess:
+
+1. **`Card`** ([Card.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/common/Card.tsx)):
+   - Reusable surface wrapper enforcing consistent borders, backgrounds, shadows, and rounded corners.
+   - **Typed Props Interface:**
+     ```tsx
+     export interface CardProps {
+       title?: string;
+       className?: string;
+       children: React.ReactNode;
+     }
+     ```
+   - **Reused across 3 different feature contexts:**
+     - [LocationCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/LocationCard.tsx) (People & Locations view)
+     - [PersonCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonCard.tsx) (People & Locations view)
+     - [CaseSummaryCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/CaseSummaryCard.tsx) (Dashboard view)
+
+2. **`Badge`** ([Badge.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/common/Badge.tsx)):
+   - Reusable indicator chip standardizing status, certainty, and relevance labels across features.
+   - **Typed Props Interface:**
+     ```tsx
+     export type BadgeVariant = 'reviewed' | 'critical' | 'flagged' | 'unreviewed' | string;
+
+     export interface BadgeProps {
+       variant?: BadgeVariant;
+       className?: string;
+       children: React.ReactNode;
+     }
+     ```
+   - **Reused across 3 different feature contexts:**
+     - [TimelineEventCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineEventCard.tsx) (Timeline view: certainty badges like `confirmed`, `contradictory`, `reported`).
+     - [CaseSummaryCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/CaseSummaryCard.tsx) (Dashboard view: case status badge like `OPEN`).
+     - [RecentEvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/RecentEvidenceList.tsx) (Dashboard view: evidence status badges like `reviewed`, `critical`, `unreviewed`).
+
+---
+
+### Questions
+
+#### 1. Show the places your reusable components are used. What varies between them via props, and what stays fixed inside the component itself? How did you decide where that line goes?
+
+**Places Used for Both Components:**
+- **`Card`:**
+  - `LocationCard.tsx`: `<Card className="location-card"> ... </Card>`
+  - `PersonCard.tsx`: `<Card className="person-card"> ... </Card>`
+  - `CaseSummaryCard.tsx`: `<Card className="case-summary-card"> ... </Card>`
+- **`Badge`:**
+  - `TimelineEventCard.tsx`: `<Badge variant={badgeClass}>{event.certainty}</Badge>`
+  - `CaseSummaryCard.tsx`: `<Badge variant="flagged">{status}</Badge>`
+  - `RecentEvidenceList.tsx`: `<Badge variant={getStatusBadgeClass(ev.status)}>{ev.status}</Badge>`
+
+**What stays fixed inside each component:**
+- **For `Card`:** The foundational panel styling (background token `var(--color-panel)`, default card class `.card`, border, and box-shadow containment) and the DOM wrapper structure.
+- **For `Badge`:** The inline chip container (`.badge`), font sizing, padding, and the dynamic BEM-like class construction: `badge badge-${variant}` (with automatic prefix normalization).
+
+**What varies via props:**
+- **For `Card`:** `className` (allowing semantic modifiers like `.person-card` or `.location-card` for grid/flex sizing) and `children` (the internal arbitrary content).
+- **For `Badge`:** `variant` (determining color themes like `badge-critical`, `badge-reviewed`, or `badge-flagged`) and `children` (the display label text).
+
+**Where we drew the line:**
+We drew the line at **visual primitives vs domain content**:
+- If a concern belongs to the outer frame or generic styling rules, it stays fixed inside the component.
+- If a concern represents domain-specific semantics, layout dimensions, or content, it is passed via props. Props avoid hardcoded assumptions about specific data structures.
+
+---
+
+#### 2. The original vanilla app had duplicated HTML-template code (the same card markup written out twice, slightly differently, in two functions). Compare that directly to what you just built. What does a reusable component give you that copy-pasted template strings didn't?
+
+1. **Single Source of Truth vs. Maintenance Divergence:**
+   - In vanilla `app.js`, when a card or badge template string was copy-pasted across `renderPeople()`, `renderLocations()`, and `renderTimeline()`, slight discrepancies crept in (different classes, missing ARIA attributes, forgotten closing tags).
+   - If design tokens changed, every copy had to be manually hunted down and modified.
+   - With reusable React components, updating `Card.tsx` or `Badge.tsx` updates every instance in the app instantly and consistently.
+2. **Compile-Time Type Safety (TypeScript Contracts):**
+   - In vanilla template strings, passing an invalid status or misspelling a class (`badge-flaged`) failed silently without any error or warning.
+   - With `Badge.tsx`, TypeScript enforces `variant?: BadgeVariant`. Passing an invalid prop shape throws an immediate compile-time typecheck error.
+3. **Encapsulated Accessibility and DOM Integrity:**
+   - Template strings frequently introduce invalid HTML when concatenating unescaped variables.
+   - A React component guarantees valid DOM hierarchy, automatic XSS string escaping, and consistent accessibility attributes out of the box.
+
+

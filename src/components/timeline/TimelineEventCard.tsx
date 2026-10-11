@@ -1,6 +1,7 @@
 import React from 'react';
 import type { TimelineEvent } from '../../types.js';
 import { formatDate, certaintyBadgeClass } from '../../utils.js';
+import { Badge } from '../common/Badge.js';
 
 export interface TimelineEventCardProps {
   event: TimelineEvent;
@@ -19,8 +20,9 @@ export const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
     <div className={`timeline-event certainty-${event.certainty}`}>
       <div className="timeline-time">
         {formatDate(event.time)}&nbsp;&middot;&nbsp;
-        <span className={`badge badge-${badgeClass}`}>{event.certainty}</span>
+        <Badge variant={badgeClass}>{event.certainty}</Badge>
       </div>
+
 
       <h3>{event.title}</h3>
       <p>{event.description}</p>

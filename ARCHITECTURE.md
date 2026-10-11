@@ -8,8 +8,10 @@ The React migration of the Project ReMotion Investigation Portal is structured b
 src/
 ├── components/
 │   ├── common/                  # Shared presentational UI primitives & app shell
+│   │   ├── Badge.tsx            # Standardized status, certainty & relevance badge
 │   │   ├── Card.tsx             # Generic card surface supporting children composition
 │   │   ├── Header.tsx           # Global header navigation and brand banner
+
 │   │   ├── Footer.tsx           # Persistent portal footer
 │   │   ├── NotFoundView.tsx     # 404 fallback view for unrecognized routes
 │   │   └── StubView.tsx         # Placeholder view for unmigrated legacy pages

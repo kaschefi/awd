@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Evidence } from '../../types.js';
 import { getStatusBadgeClass } from '../../utils.js';
+import { Badge } from '../common/Badge.js';
 
 interface RecentEvidenceListProps {
   evidence: Evidence[];
@@ -30,7 +31,7 @@ export const RecentEvidenceList: React.FC<RecentEvidenceListProps> = ({ evidence
         recent.map((ev) => (
           <div key={ev.id} className="mini-list-item">
             <strong>{ev.id}</strong> &mdash; {ev.title}{' '}
-            <span className={`badge ${getStatusBadgeClass(ev.status)}`}>{ev.status}</span>
+            <Badge variant={getStatusBadgeClass(ev.status)}>{ev.status}</Badge>
           </div>
         ))
       )}

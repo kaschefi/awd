@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Header } from './components/Header';
-import { Footer } from './components/Footer';
-import { StubView } from './components/StubView';
-import { NotFoundView } from './components/NotFoundView';
-import { DashboardView } from './components/dashboard/DashboardView';
+import { Header } from './components/common/Header.js';
+import { Footer } from './components/common/Footer.js';
+import { StubView } from './components/common/StubView.js';
+import { NotFoundView } from './components/common/NotFoundView.js';
+import { DashboardView } from './components/dashboard/DashboardView.js';
 import { ViewKey } from './types/navigation.js';
 import { PeopleLocationsView } from './components/people_locations/PeopleLocationsView.js';
 import { TimelineView } from './components/timeline/TimelineView.js';
+
 
 function extractViewFromHash(hash: string): { isReact: boolean; view: string } {
   const clean = hash.replace(/^#\/?/, '').trim();

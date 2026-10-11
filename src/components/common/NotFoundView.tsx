@@ -48,7 +48,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ attemptedRoute, onNa
           lineHeight: '1.6',
         }}
       >
-        <strong style={{ color: 'var(--color-header)' }}>Architectural Comparison (Demo 9):</strong>
+        <strong style={{ color: 'var(--color-header)' }}>Architectural Comparison:</strong>
         <p style={{ margin: '0.35rem 0 0 0', color: 'var(--color-text)' }}>
           Unlike the legacy Vanilla app (which silently fell back to <code>dashboard</code> when an
           invalid route was entered), this React routing skeleton explicitly detects unrecognized

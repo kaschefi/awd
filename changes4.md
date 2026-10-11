@@ -542,3 +542,82 @@ A simple litmus test: *"Can I render this component in Storybook or a test by ju
 - If **Yes**, it is a **Presentational component**.
 - If **No** (it requires ambient state, router state, or data providers), it is a **Feature/Container component**.
 
+---
+
+## Demo 6 — Feature-oriented folder structure
+
+### Tasks
+
+#### 1. Reorganized React components into a feature-oriented directory structure
+
+We restructured the component tree so that all files are grouped by domain features and shared primitives rather than a flat unstructured folder:
+
+```
+src/components/
+├── common/             # Reusable UI primitives and global layout shell
+│   ├── Card.tsx
+│   ├── Header.tsx
+│   ├── Footer.tsx
+│   ├── NotFoundView.tsx
+│   └── StubView.tsx
+├── dashboard/          # Case Dashboard domain
+│   ├── CaseSummaryCard.tsx
+│   ├── DashboardView.tsx
+│   ├── HowToUsePortal.tsx
+│   ├── RecentEvidenceList.tsx
+│   ├── RecentTimelineList.tsx
+│   ├── ReviewProgress.tsx
+│   ├── StatCard.tsx
+│   └── StatGrid.tsx
+├── people_locations/   # Personnel & Facility Locations domain
+│   ├── LocationCard.tsx
+│   ├── LocationsList.tsx
+│   ├── PeopleList.tsx
+│   ├── PeopleLocationsView.tsx
+│   └── PersonCard.tsx
+└── timeline/           # Investigation Timeline domain
+    ├── TimelineEventCard.tsx
+    ├── TimelineList.tsx
+    ├── TimelineToolbar.tsx
+    └── TimelineView.tsx
+```
+
+All import paths across [ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx) and subcomponents were updated to reflect this feature hierarchy.
+
+---
+
+#### 2. Documented the structure and boundary rules in `ARCHITECTURE.md`
+
+We created [ARCHITECTURE.md](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/ARCHITECTURE.md) documenting:
+- The full directory tree.
+- The boundary rule for classifying code as "shared" vs "feature-local".
+
+---
+
+### Questions
+
+#### 1. What's the difference between organizing files "by type" (all components in one folder, all hooks in another) versus "by feature"? What made you choose the structure you chose for this app specifically?
+
+- **Organization "By Type" (Technical Layering):**
+  - Files are grouped by their technical role: `components/`, `hooks/`, `utils/`, `types/`.
+  - **Downside:** High coupling across folders. A developer working on the Timeline must constantly open 4 different folders (`components/TimelineCard.tsx`, `hooks/useTimeline.ts`, `types/timeline.ts`, `utils/timelineFormatters.ts`). When a feature is retired or refactored, deleting it requires hunting down disparate files scattered throughout the project.
+- **Organization "By Feature" (Vertical Slicing / Domain Colocation):**
+  - Files are grouped by what user-facing business feature they serve: `dashboard/`, `timeline/`, `people_locations/`.
+  - **Advantage:** Maximum cohesion and minimal mental friction. All files that change together live together. The entire feature is self-contained.
+- **Why we chose this for this app specifically:**
+  - Project ReMotion is an investigation portal consisting of 5 distinct investigation tools (Dashboard, Evidence, People/Locations, Timeline, Workspace). Each view has its own unique domain types, layout requirements, and subcomponents. Grouping by feature allows each view to be developed, migrated, and maintained in complete isolation.
+
+---
+
+#### 2. Where did you draw the line between a component that lives inside one feature folder and one that belongs in a shared/common folder? Give one real example of each from your own structure.
+
+**The Boundary Rule:**
+1. **Belongs in `common/` (Shared):**
+   - The component is **domain-agnostic**: it has no knowledge of domain entities like `Person`, `Location`, or `TimelineEvent`.
+   - It is reused across two or more unrelated features or provides global layout shell structure.
+   - **Real Example:** `Card` in `src/components/common/Card.tsx`. It provides an outer panel frame, border, and shadow using `children: React.ReactNode`, and is reused across both `PersonCard` and `LocationCard`.
+2. **Belongs in a Feature folder (Feature-Local):**
+   - The component is **domain-specific**: it exists solely to support that specific investigation view and understands that feature's typed domain models.
+   - It would make no sense on an unrelated page.
+   - **Real Example:** `TimelineToolbar` in `src/components/timeline/TimelineToolbar.tsx`. It renders specific filter dropdowns for timeline event types and date sorting; it has no purpose or reusability outside the Timeline view.
+

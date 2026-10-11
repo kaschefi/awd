@@ -5,7 +5,7 @@ export const Footer: React.FC = () => {
     <footer className="app-footer">
       <p>
         Project ReMotion Investigation Portal &mdash; Research Center AI, Software and IT-Security
-        of HCW (fictional case study) &bull; React Application Shell (Demo 9)
+        of HCW (fictional case study) &bull; React Application Shell
       </p>
     </footer>
   );

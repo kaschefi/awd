@@ -1,5 +1,5 @@
 import React from 'react';
-import { NAV_ITEMS, ViewKey } from '../types/navigation';
+import { NAV_ITEMS, ViewKey } from '../../types/navigation.js';
 
 interface HeaderProps {
   currentView: string;
@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onSwitc
                   borderRadius: '4px',
                 }}
               >
-                React Shell (Demo 9)
+                React Shell
               </span>
             </div>
             <p className="subtitle">

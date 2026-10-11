@@ -1,119 +1,91 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Header } from './components/common/Header.js';
 import { Footer } from './components/common/Footer.js';
 import { StubView } from './components/common/StubView.js';
 import { NotFoundView } from './components/common/NotFoundView.js';
 import { DashboardView } from './components/dashboard/DashboardView.js';
-import { ViewKey } from './types/navigation.js';
 import { PeopleLocationsView } from './components/people_locations/PeopleLocationsView.js';
 import { TimelineView } from './components/timeline/TimelineView.js';
 
-
-function extractViewFromHash(hash: string): { isReact: boolean; view: string } {
-  const clean = hash.replace(/^#\/?/, '').trim();
-  if (!clean || clean === 'react' || clean === 'react/') {
-    return { isReact: true, view: 'dashboard' };
-  }
-  if (clean.startsWith('react/')) {
-    const subRoute = clean.replace(/^react\//, '').trim();
-    return { isReact: true, view: subRoute || 'dashboard' };
-  }
-  return { isReact: false, view: clean };
-}
-
-export const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<string>(() => {
-    return extractViewFromHash(window.location.hash).view;
-  });
-
-  const syncHashToView = useCallback(() => {
-    const { isReact, view } = extractViewFromHash(window.location.hash);
-    if (isReact) {
-      setCurrentView(view);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('hashchange', syncHashToView);
-    return () => {
-      window.removeEventListener('hashchange', syncHashToView);
-    };
-  }, [syncHashToView]);
-
-  const navigateToView = (view: ViewKey | string) => {
-    window.location.hash = `react/${view}`;
-  };
-
-  const handleSwitchToVanilla = () => {
-    window.location.hash = 'dashboard';
-  };
-
+export const AppContent: React.FC = () => {
   const handleOpenInVanilla = (view: string) => {
     window.location.hash = view;
   };
 
-  const renderContent = () => {
-    switch (currentView) {
-      case 'dashboard':
-        return <DashboardView onNavigate={navigateToView} />;
-      case 'evidence':
-        return (
-          <StubView
-            viewId="evidence"
-            title="Evidence Locker"
-            icon=""
-            description="Examine logs, telemetry files, sensor readings, and incident reports."
-            onOpenInVanilla={handleOpenInVanilla}
-          />
-        );
-      case 'people':
-        return (
-          <PeopleLocationsView
-            onNavigateToEvidence={(personId) => {
-              window.location.hash = 'evidence';
-              setTimeout(() => {
-                const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
-                if (filterEl) {
-                  filterEl.value = personId;
-                  filterEl.dispatchEvent(new Event('change'));
-                }
-              }, 50);
-            }}
-          />
-        );
-      case 'timeline':
-        return <TimelineView />;
-
-      case 'workspace':
-        return (
-          <StubView
-            viewId="workspace"
-            title="Investigator Workspace"
-            icon=""
-            description="Private notes, hypotheses tracking, and correlation matrix workspace."
-            onOpenInVanilla={handleOpenInVanilla}
-          />
-        );
-      default:
-        return (
-          <NotFoundView
-            attemptedRoute={`#react/${currentView}`}
-            onNavigateHome={() => navigateToView('dashboard')}
-          />
-        );
-    }
+  const handleNavigateToEvidence = (personId: string) => {
+    window.location.hash = 'evidence';
+    setTimeout(() => {
+      const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
+      if (filterEl) {
+        filterEl.value = personId;
+        filterEl.dispatchEvent(new Event('change'));
+      }
+    }, 50);
   };
 
   return (
     <div className="react-application-shell">
-      <Header
-        currentView={currentView}
-        onNavigate={navigateToView}
-        onSwitchToVanilla={handleSwitchToVanilla}
-      />
-      <main className="app-main">{renderContent()}</main>
+      <Header />
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardView />} />
+
+          {/* People & Locations real routes */}
+          <Route path="/team" element={<Navigate to="/team/people" replace />} />
+          <Route
+            path="/team/*"
+            element={<PeopleLocationsView onNavigateToEvidence={handleNavigateToEvidence} />}
+          />
+
+          {/* Legacy route compatibility */}
+          <Route path="/people" element={<Navigate to="/team/people" replace />} />
+          <Route path="/locations" element={<Navigate to="/team/locations" replace />} />
+
+          {/* Timeline route */}
+          <Route path="/timeline" element={<TimelineView />} />
+
+          {/* Unmigrated Views (Exercise 5 stubs) */}
+          <Route
+            path="/evidence"
+            element={
+              <StubView
+                viewId="evidence"
+                title="Evidence Locker"
+                icon=""
+                description="Examine logs, telemetry files, sensor readings, and incident reports."
+                onOpenInVanilla={handleOpenInVanilla}
+              />
+            }
+          />
+          <Route
+            path="/workspace"
+            element={
+              <StubView
+                viewId="workspace"
+                title="Investigator Workspace"
+                icon=""
+                description="Private notes, hypotheses tracking, and correlation matrix workspace."
+                onOpenInVanilla={handleOpenInVanilla}
+              />
+            }
+          />
+
+          {/* Wildcard 404 Catch-All */}
+          <Route path="*" element={<NotFoundView />} />
+        </Routes>
+      </main>
       <Footer />
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <HashRouter basename="/react">
+      <AppContent />
+    </HashRouter>
   );
 };
 

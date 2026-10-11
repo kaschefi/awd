@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import type { Person, Location } from '../../types.js';
 import { PeopleList } from './PeopleList.js';
 import { LocationsList } from './LocationsList.js';
 import { usePortalData } from '../../hooks/usePortalData.js';
 
 export interface PeopleLocationsViewProps {
-  initialTab?: 'people' | 'locations';
   people?: Person[];
   locations?: Location[];
   onNavigateToEvidence?: (personId: string) => void;
 }
 
 export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
-  initialTab = 'people',
   people: propPeople,
   locations: propLocations,
   onNavigateToEvidence,
@@ -20,9 +19,6 @@ export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
   const portal = usePortalData();
   const people = propPeople ?? portal.people;
   const locations = propLocations ?? portal.locations;
-
-  const [activeTab, setActiveTab] = useState<'people' | 'locations'>(initialTab);
-
 
   return (
     <section className="view active" id="view-people">
@@ -34,30 +30,29 @@ export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
       </div>
 
       <div className="tabs" style={{ marginBottom: '1.5rem' }}>
-        {/* Technique: Ternary for state-dependent active class */}
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'people' ? 'active' : ''}`}
-          onClick={() => setActiveTab('people')}
+        <NavLink
+          to="/team/people"
+          className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
         >
           Personnel ({people.length})
-        </button>
-        <button
-          type="button"
-          className={`tab-btn ${activeTab === 'locations' ? 'active' : ''}`}
-          onClick={() => setActiveTab('locations')}
+        </NavLink>
+        <NavLink
+          to="/team/locations"
+          className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
         >
           Locations ({locations.length})
-        </button>
+        </NavLink>
       </div>
 
-      {/* Technique: Ternary conditional rendering of panels */}
-      {activeTab === 'people' ? (
-        <PeopleList people={people} onViewEvidence={onNavigateToEvidence} />
-      ) : (
-        <LocationsList locations={locations} />
-      )}
+      <Routes>
+        <Route
+          path="people"
+          element={<PeopleList people={people} onViewEvidence={onNavigateToEvidence} />}
+        />
+        <Route path="locations" element={<LocationsList locations={locations} />} />
+        <Route path="" element={<Navigate to="people" replace />} />
+        <Route path="*" element={<Navigate to="people" replace />} />
+      </Routes>
     </section>
-
   );
 };

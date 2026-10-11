@@ -707,4 +707,130 @@ We drew the line at **visual primitives vs domain content**:
    - Template strings frequently introduce invalid HTML when concatenating unescaped variables.
    - A React component guarantees valid DOM hierarchy, automatic XSS string escaping, and consistent accessibility attributes out of the box.
 
+---
+
+## Demo 8 — Routing: People & Locations as real routes
+
+### Tasks
+
+#### 1. Installed React Router (`react-router-dom`) and replaced placeholder navigation shell with real routes
+
+We installed `react-router-dom` (v7.18.4) and replaced the custom hash string parsing and `switch(currentView)` state toggle from Exercise 3 with declarative, standards-compliant client-side routing.
+
+**Router Choice & Architectural Justification:**
+- **Library:** `react-router-dom` was selected as the industry-standard client routing solution for React, providing declarative components (`<Routes>`, `<Route>`, `<NavLink>`, `<Link>`) and hooks (`useNavigate()`, `useLocation()`, `useParams()`, `useSearchParams()`).
+- **Strategy:** We configured `<HashRouter basename="/react">` in [ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx).
+  - *Coexistence with legacy Vanilla JS:* The ReMotion portal hosts legacy vanilla views (awaiting future migration) alongside modern React views on the exact same static page. Hash-based routing allows switching between `#vanilla-root` and `#react-root` seamlessly without making HTTP requests.
+  - *Zero Server-Configuration Dependency:* Standard `BrowserRouter` uses HTML5 `history.pushState()`, which requires web server URL rewrite fallback rules (`try_files $uri /index.html`). Without rewrite rules, hard-refreshing a deep path like `/team/locations` on static hosting (e.g. GitHub Pages, static CDNs) yields a 404 HTTP error. `HashRouter` keeps all routing purely client-side behind the hash fragment (`#/react/...`), guaranteeing 100% bookmarkability and reloadability across any hosting environment.
+
+**Configured Route Hierarchy in [`ReactApp.tsx`](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx):**
+```tsx
+<Routes>
+  {/* Root redirect */}
+  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+  {/* Migrated Core Views */}
+  <Route path="/dashboard" element={<DashboardView />} />
+
+  {/* People & Locations Sub-Routes */}
+  <Route path="/team" element={<Navigate to="/team/people" replace />} />
+  <Route path="/team/*" element={<PeopleLocationsView onNavigateToEvidence={...} />} />
+
+  {/* Backward-compatibility aliases */}
+  <Route path="/people" element={<Navigate to="/team/people" replace />} />
+  <Route path="/locations" element={<Navigate to="/team/locations" replace />} />
+
+  {/* Timeline View */}
+  <Route path="/timeline" element={<TimelineView />} />
+
+  {/* Unmigrated Stubs (Exercise 5) */}
+  <Route path="/evidence" element={<StubView viewId="evidence" ... />} />
+  <Route path="/workspace" element={<StubView viewId="workspace" ... />} />
+
+  {/* Wildcard 404 Catch-All */}
+  <Route path="*" element={<NotFoundView />} />
+</Routes>
+```
+
+---
+
+#### 2. Converted People/Locations tab toggle from local state into real, bookmarkable routes
+
+In [PeopleLocationsView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleLocationsView.tsx), we eliminated internal `useState<'people' | 'locations'>` and replaced it with genuine nested routing:
+
+```tsx
+<div className="tabs" style={{ marginBottom: '1.5rem' }}>
+  <NavLink
+    to="/team/people"
+    className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
+  >
+    Personnel ({people.length})
+  </NavLink>
+  <NavLink
+    to="/team/locations"
+    className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
+  >
+    Locations ({locations.length})
+  </NavLink>
+</div>
+
+<Routes>
+  <Route
+    path="people"
+    element={<PeopleList people={people} onViewEvidence={onNavigateToEvidence} />}
+  />
+  <Route path="locations" element={<LocationsList locations={locations} />} />
+  <Route path="" element={<Navigate to="people" replace />} />
+  <Route path="*" element={<Navigate to="people" replace />} />
+</Routes>
+```
+
+- When the user visits `#/react/team/people`, the Personnel tab receives `.active` styling and `<PeopleList />` renders.
+- When the user clicks the "Locations" tab, the URL updates to `#/react/team/locations`, and `<LocationsList />` renders without any page reload.
+- The URL is now the single source of truth for the active tab.
+
+---
+
+### Questions
+
+#### 1. Why does making the People/Locations tab a real route (versus keeping it as internal component state) matter for the user? Name a concrete capability the user gains.
+
+Making the tab a real route elevates UI navigation from transient in-memory component state into the browser's native location contract:
+
+1. **Direct Deep Linking & Shareability (Concrete Capability):**
+   - An investigator analyzing facility layout L03 (Storage Room) can copy the exact address (`http://localhost:5173/#/react/team/locations`) and paste it to a team member in a chat or incident report.
+   - When the colleague opens that link, the application immediately renders the **Locations** tab.
+   - With transient `useState`, opening the shared link would default back to the initial state (`people`), forcing the colleague to manually click "Locations" again.
+2. **Browser History & Back/Forward Navigation:**
+   - Navigating from Personnel to Locations creates a distinct entry in the browser's session history.
+   - If the user clicks "Back" (Alt + Left Arrow), the browser returns to the Personnel tab as expected, rather than discarding the entire view or taking the user away from the application.
+3. **Resilience to Page Refreshes (F5):**
+   - If the user is inspecting facility locations and accidentally refreshes the browser, the active tab is preserved by reading the URL, avoiding frustrating state resets.
+
+---
+
+#### 2. What does your router do when the URL doesn't match any route you've defined? Compare this to how the vanilla app's `handleHashChange()` fell back to the dashboard for an invalid hash.
+
+1. **What Our Router Does:**
+   - Our router registers a wildcard catch-all route at the bottom of the route tree: `<Route path="*" element={<NotFoundView />} />`.
+   - When the user enters an unrecognized URL (e.g. `#/react/invalid-page-test`), the router catches it and renders [NotFoundView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/common/NotFoundView.tsx).
+   - This view visually communicates the error with a `404 — View Not Found` banner, echoes the exact attempted path (`/invalid-page-test`) using `useLocation().pathname`, explains why the route failed, and provides a clear **Return to Dashboard** button.
+
+2. **Comparison with Vanilla App's `handleHashChange()`:**
+   - In vanilla `app.ts`, route resolution was handled by:
+     ```ts
+     if (!routes[view]) {
+       view = 'dashboard';
+     }
+     ```
+   - If a user navigated to `#unknown-view-xyz`, the vanilla app **silently fell back to the dashboard**.
+   - **Problems with the Vanilla Approach:**
+     - **Silent State Drift & URL Desynchronization:** The address bar remained `#unknown-view-xyz`, but the viewport displayed the dashboard without any explanation.
+     - **Concealed Broken Links:** If an internal button had a typo in its hash link, developers and users had no obvious indication that the requested view was missing—it simply displayed the dashboard.
+     - **User Confusion:** Users who typed or bookmarked an invalid URL could not determine whether the link was broken or whether the dashboard *was* the intended destination.
+   - **The React Router Wildcard Advantage:**
+     - Deterministic, explicit error handling.
+     - The user is clearly notified that their destination does not exist and is given an intentional path back to safety.
+
+
 

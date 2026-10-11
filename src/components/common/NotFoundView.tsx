@@ -1,11 +1,15 @@
 import React from 'react';
+import { useLocation, Link } from 'react-router-dom';
 
 interface NotFoundViewProps {
-  attemptedRoute: string;
-  onNavigateHome: () => void;
+  attemptedRoute?: string;
+  onNavigateHome?: () => void;
 }
 
 export const NotFoundView: React.FC<NotFoundViewProps> = ({ attemptedRoute, onNavigateHome }) => {
+  const location = useLocation();
+  const routeDisplay = attemptedRoute || location.pathname;
+
   return (
     <div
       className="card"
@@ -32,7 +36,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ attemptedRoute, onNa
             fontWeight: 600,
           }}
         >
-          {attemptedRoute}
+          {routeDisplay}
         </code>{' '}
         does not match any recognized application view.
       </p>
@@ -51,15 +55,21 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ attemptedRoute, onNa
         <strong style={{ color: 'var(--color-header)' }}>Architectural Comparison:</strong>
         <p style={{ margin: '0.35rem 0 0 0', color: 'var(--color-text)' }}>
           Unlike the legacy Vanilla app (which silently fell back to <code>dashboard</code> when an
-          invalid route was entered), this React routing skeleton explicitly detects unrecognized
-          routes and renders an informative fallback view. This prevents user confusion, immediately
-          surfaces broken links, and avoids silent state drift.
+          invalid route was entered), this React Router setup explicitly catches unrecognized
+          routes using a wildcard route (<code>path="*"</code>) and renders an informative fallback view.
+          This prevents user confusion, immediately surfaces broken links, and avoids silent state drift.
         </p>
       </div>
 
-      <button type="button" className="btn btn-primary" onClick={onNavigateHome}>
-        Return to Dashboard
-      </button>
+      {onNavigateHome ? (
+        <button type="button" className="btn btn-primary" onClick={onNavigateHome}>
+          Return to Dashboard
+        </button>
+      ) : (
+        <Link to="/dashboard" className="btn btn-primary">
+          Return to Dashboard
+        </Link>
+      )}
     </div>
   );
 };

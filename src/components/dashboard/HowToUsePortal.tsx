@@ -1,8 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { ViewKey } from '../../types/navigation.js';
 
 interface HowToUsePortalProps {
-  onNavigate: (view: ViewKey) => void;
+  onNavigate?: (view: ViewKey) => void;
 }
 
 export const HowToUsePortal: React.FC<HowToUsePortalProps> = ({ onNavigate }) => {
@@ -20,13 +21,13 @@ export const HowToUsePortal: React.FC<HowToUsePortalProps> = ({ onNavigate }) =>
             Search, filter, and sort every evidence item. Open one for full details, related people
             and locations, and to add a private note.
           </p>
-          <button
-            type="button"
+          <Link
+            to="/evidence"
             className="btn btn-secondary btn-small"
-            onClick={() => onNavigate('evidence')}
+            onClick={() => onNavigate?.('evidence')}
           >
             Go to Evidence
-          </button>
+          </Link>
         </div>
         <div className="howto-item">
           <h4>2. People &amp; Locations</h4>
@@ -34,13 +35,13 @@ export const HowToUsePortal: React.FC<HowToUsePortalProps> = ({ onNavigate }) =>
             Read profiles and statements from the six team members involved, and look up the six key
             locations in the investigation.
           </p>
-          <button
-            type="button"
+          <Link
+            to="/team/people"
             className="btn btn-secondary btn-small"
-            onClick={() => onNavigate('people')}
+            onClick={() => onNavigate?.('people')}
           >
             Go to People &amp; Locations
-          </button>
+          </Link>
         </div>
         <div className="howto-item">
           <h4>3. Timeline</h4>
@@ -48,13 +49,13 @@ export const HowToUsePortal: React.FC<HowToUsePortalProps> = ({ onNavigate }) =>
             Walk through events in chronological order, filter by person, location, or type, and
             jump straight to the evidence behind any event.
           </p>
-          <button
-            type="button"
+          <Link
+            to="/timeline"
             className="btn btn-secondary btn-small"
-            onClick={() => onNavigate('timeline')}
+            onClick={() => onNavigate?.('timeline')}
           >
             Go to Timeline
-          </button>
+          </Link>
         </div>
         <div className="howto-item">
           <h4>4. Investigator Workspace</h4>
@@ -63,13 +64,13 @@ export const HowToUsePortal: React.FC<HowToUsePortalProps> = ({ onNavigate }) =>
             suspect, why, and how confident you are &mdash; it&apos;s saved automatically in your
             browser.
           </p>
-          <button
-            type="button"
+          <Link
+            to="/workspace"
             className="btn btn-secondary btn-small"
-            onClick={() => onNavigate('workspace')}
+            onClick={() => onNavigate?.('workspace')}
           >
             Go to Workspace
-          </button>
+          </Link>
         </div>
       </div>
     </div>

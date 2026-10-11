@@ -9,7 +9,7 @@ import { RecentTimelineList } from './RecentTimelineList.js';
 import type { ViewKey } from '../../types/navigation.js';
 
 interface DashboardViewProps {
-  onNavigate: (view: ViewKey) => void;
+  onNavigate?: (view: ViewKey) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {

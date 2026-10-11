@@ -1,25 +1,36 @@
 import React from 'react';
-import { NAV_ITEMS, ViewKey } from '../../types/navigation.js';
+import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NAV_ITEMS } from '../../types/navigation.js';
 
 interface HeaderProps {
-  currentView: string;
-  onNavigate: (viewId: ViewKey) => void;
-  onSwitchToVanilla: () => void;
+  onSwitchToVanilla?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onSwitchToVanilla }) => {
+export const Header: React.FC<HeaderProps> = ({ onSwitchToVanilla }) => {
+  const location = useLocation();
+
+  const isItemActive = (path: string) => {
+    if (path.startsWith('/team')) {
+      return location.pathname.startsWith('/team');
+    }
+    return location.pathname === path;
+  };
+
+  const handleSwitchToVanilla = () => {
+    if (onSwitchToVanilla) {
+      onSwitchToVanilla();
+    } else {
+      window.location.hash = 'dashboard';
+    }
+  };
+
   return (
     <header className="app-header">
       <div className="header-inner">
-        <div
+        <Link
+          to="/dashboard"
           className="brand"
-          style={{ cursor: 'pointer' }}
-          onClick={() => onNavigate('dashboard')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') onNavigate('dashboard');
-          }}
+          style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
         >
           <img src="./assets/logo/logo.svg" alt="Project ReMotion logo" className="brand-logo" />
           <div>
@@ -45,28 +56,27 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onSwitc
               Investigate the failure of an AI-assisted rehabilitation robot.
             </p>
           </div>
-        </div>
+        </Link>
 
         <nav className="main-nav" aria-label="React Main Navigation">
           {NAV_ITEMS.map((item) => {
-            const isActive = currentView === item.id;
+            const active = isItemActive(item.path);
             return (
-              <button
+              <NavLink
                 key={item.id}
-                type="button"
-                className={`nav-btn ${isActive ? 'active' : ''}`}
-                aria-current={isActive ? 'page' : undefined}
-                onClick={() => onNavigate(item.id)}
+                to={item.path}
+                className={`nav-btn ${active ? 'active' : ''}`}
+                aria-current={active ? 'page' : undefined}
               >
                 {item.label}
-              </button>
+              </NavLink>
             );
           })}
 
           <button
             type="button"
             className="nav-btn"
-            onClick={onSwitchToVanilla}
+            onClick={handleSwitchToVanilla}
             title="Switch to the legacy Vanilla JS application"
             style={{
               borderColor: 'rgba(255, 255, 255, 0.4)',

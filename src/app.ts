@@ -131,7 +131,7 @@ declare global {
 window.navigateTo = navigateTo; // Expose globally for inline buttons in HTML snippets
 
 async function handleHashChange(): Promise<void> {
-  let view = window.location.hash.replace('#', '').trim();
+  let view = window.location.hash.replace(/^#\/?/, '').trim();
   // Default to 'react/dashboard' if no route hash is specified (home page)
   if (!view) {
     view = 'react/dashboard';

@@ -43,23 +43,8 @@ export const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
           ))}
         </div>
       )}
-
-      {/* Throwaway input to demonstrate local DOM state preservation vs key identity */}
-      <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--color-border)' }}>
-        <input
-          type="text"
-          placeholder={`Note for ${event.id}...`}
-          style={{
-            width: '100%',
-            padding: '4px 8px',
-            fontSize: '0.85rem',
-            background: 'var(--color-bg, #fff)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
     </div>
   );
 };
+
 

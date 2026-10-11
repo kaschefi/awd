@@ -459,3 +459,86 @@ We configured an interactive demonstration in [TimelineView.tsx](file:///c:/User
 3. **The data has no natural unique identifier:** For instance, rendering a static list of bullet points from a fixed string array (e.g. `responsibilities: string[]` on `PersonCard` where items are static strings like `["Lead clinician", "Supervise safety protocols"]`), or static breadcrumbs, or a fixed pagination number strip (`[1, 2, 3, 4]`).
 
 Even in these cases, if the items are strings and unique, `key={string}` is preferable. `key={index}` should be treated as an explicit last resort.
+
+---
+
+## Demo 5 — Presentational vs. feature components and component boundaries
+
+### Tasks
+
+#### 1. Classified every component as either "presentational" or "feature/container"
+
+We classified all components in the React migration based on their responsibilities:
+
+| Component | Classification | Architectural Justification |
+|---|---|---|
+| **`Card`** | **Presentational** | Visual container shell. Knows nothing about domain models; accepts only `title`, `className`, and `children: React.ReactNode`. |
+| **`PersonCard`** | **Presentational** | Focused strictly on rendering a single person's profile, role, avatar, and statement. Takes data and an `onViewEvidence` callback strictly via typed props. |
+| **`LocationCard`** | **Presentational** | Purely renders a location entity's ID, name, description, and contents list. Has no internal state or external hooks. |
+| **`TimelineEventCard`** | **Presentational** | Renders a single timeline incident entry with certainty badge and formatted timestamp. Free of business logic; delegates evidence clicks via callback. |
+| **`TimelineToolbar`** | **Presentational** | Purely renders the sorting order dropdown and filter selectors. Receives all options and `onChange` callbacks via props with zero internal data-fetching. |
+| **`TimelineList`** | **Presentational** | Focuses on mapping an array of events to cards or rendering the empty state. Has no state management or API connection. |
+| **`PeopleList`** | **Presentational** | Takes an array of people and renders the grid layout or empty state message. |
+| **`LocationsList`** | **Presentational** | Takes an array of locations and renders the grid layout or empty state message. |
+| **`Header` / `Footer`** | **Presentational** | Renders the navigation bar and footer markup, emitting `onNavigate` callbacks to the shell. |
+| **`TimelineView`** | **Feature / Container** | Orchestrates the timeline view: connects to `usePortalData()`, maintains sort order state (`asc` / `desc`), filters items, and coordinates `TimelineToolbar` and `TimelineList`. |
+| **`PeopleLocationsView`** | **Feature / Container** | Orchestrates the team view: connects to `usePortalData()`, manages `activeTab` state (`people` vs `locations`), and swaps child list views. |
+| **`DashboardView`** | **Feature / Container** | Orchestrates case overview: subscribes to `usePortalData()`, calculates derived aggregate stats (progress %, reviewed counts), and renders dashboard cards. |
+| **`App` (ReactApp)** | **Feature / Container** | Top-level application shell: manages URL hash synchronization, handles coexistence switching between React and Vanilla modes, and conditionally mounts views. |
+
+---
+
+#### 2. Split a multi-responsibility component into two focused components with a clean boundary
+
+**Component Identified:** [TimelineView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineView.tsx) was originally doing two distinct jobs:
+1. Managing view state, data subscriptions, and sorting/filtering logic.
+2. Rendering the full layout, select elements, labels, and options for the toolbar controls.
+
+**The Split:**
+We extracted the toolbar into [TimelineToolbar.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineToolbar.tsx):
+- **`TimelineToolbar` (Presentational Half):**
+  ```tsx
+  export interface TimelineToolbarProps {
+    order: 'asc' | 'desc';
+    onOrderChange: (order: 'asc' | 'desc') => void;
+    selectedPerson?: string;
+    onPersonChange?: (personId: string) => void;
+    selectedLocation?: string;
+    onLocationChange?: (locationId: string) => void;
+    selectedType?: string;
+    onTypeChange?: (type: string) => void;
+    people: Person[];
+    locations: Location[];
+    eventTypes: string[];
+  }
+  ```
+- **`TimelineView` (Container Half):**
+  Now cleanly delegates the toolbar rendering to `<TimelineToolbar ... />` and focuses exclusively on managing data and sorting.
+
+---
+
+### Questions
+
+#### 1. For the component you split: what was the single responsibility of each half after the split? If an implementation detail in one half changed, would that change affect the other half? Why or why not?
+
+- **Single Responsibility of `TimelineToolbar`:**
+  To render the visual UI controls for sorting and filtering, and notify the parent when a user selects a different value. It has zero knowledge of how events are sorted or where data comes from.
+- **Single Responsibility of `TimelineView`:**
+  To manage the application lifecycle and state for the timeline feature (subscribing to `usePortalData()`, sorting/filtering the events array, and assembling child components).
+
+- **Would an implementation detail change in one half affect the other half?**
+  **No.** The boundary between them is strictly defined by TypeScript props interfaces:
+  - If we completely redesign the toolbar UI (e.g. replacing `<select>` dropdowns with interactive chip buttons, a search bar, or an accessible dropdown library), **`TimelineView` does not change at all** as long as `TimelineToolbar` still fires `onOrderChange` and `onPersonChange`.
+  - Conversely, if we change how timeline events are loaded or sorted (e.g. sorting on the backend, or changing the date comparator algorithm), **`TimelineToolbar` is completely unaffected** because it only consumes the resulting data via props.
+
+---
+
+#### 2. Give one concrete rule you used to decide "this belongs in a presentational component" versus "this belongs in a feature component."
+
+**The Golden Rule:**
+> **"If a component needs to know *where* data comes from (hooks, global state, APIs, URL parameters) or *what business logic* to run when an action occurs, it belongs in a Feature/Container component. If a component only needs to know *how to render* given data and fires callbacks upward without knowing the business consequences, it belongs in a Presentational component."**
+
+A simple litmus test: *"Can I render this component in Storybook or a test by just passing mock props, without setting up network providers, route contexts, or global stores?"*
+- If **Yes**, it is a **Presentational component**.
+- If **No** (it requires ambient state, router state, or data providers), it is a **Feature/Container component**.
+

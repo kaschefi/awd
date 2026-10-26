@@ -2,19 +2,24 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Header } from './components/common/Header.js';
 import { Footer } from './components/common/Footer.js';
-import { StubView } from './components/common/StubView.js';
 import { NotFoundView } from './components/common/NotFoundView.js';
 import { DashboardView } from './components/dashboard/DashboardView.js';
 import { PeopleLocationsView } from './components/people_locations/PeopleLocationsView.js';
 import { TimelineView } from './components/timeline/TimelineView.js';
 
+import { EvidenceView } from './components/evidence/EvidenceView.js';
+import { WorkspaceView } from './components/workspace/WorkspaceView.js';
+
 export const AppContent: React.FC = () => {
-  const handleOpenInVanilla = (view: string) => {
-    window.location.hash = view;
+  const [selectedEvidenceId, setSelectedEvidenceId] = React.useState<string | null>(null);
+
+  const handleOpenEvidence = (evidenceId: string) => {
+    setSelectedEvidenceId(evidenceId);
+    window.location.hash = '#/evidence';
   };
 
   const handleNavigateToEvidence = (personId: string) => {
-    window.location.hash = 'evidence';
+    window.location.hash = '#/evidence';
     setTimeout(() => {
       const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
       if (filterEl) {
@@ -46,30 +51,18 @@ export const AppContent: React.FC = () => {
           {/* Timeline route */}
           <Route path="/timeline" element={<TimelineView />} />
 
-          {/* Unmigrated Views (Exercise 5 stubs) */}
+          {/* Migrated Evidence and Workspace Views */}
           <Route
             path="/evidence"
             element={
-              <StubView
-                viewId="evidence"
-                title="Evidence Locker"
-                icon=""
-                description="Examine logs, telemetry files, sensor readings, and incident reports."
-                onOpenInVanilla={handleOpenInVanilla}
+              <EvidenceView
+                initialSelectedId={selectedEvidenceId}
               />
             }
           />
           <Route
             path="/workspace"
-            element={
-              <StubView
-                viewId="workspace"
-                title="Investigator Workspace"
-                icon=""
-                description="Private notes, hypotheses tracking, and correlation matrix workspace."
-                onOpenInVanilla={handleOpenInVanilla}
-              />
-            }
+            element={<WorkspaceView onOpenEvidence={handleOpenEvidence} />}
           />
 
           {/* Wildcard 404 Catch-All */}

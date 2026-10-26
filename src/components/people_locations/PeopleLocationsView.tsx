@@ -24,10 +24,7 @@ export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
   return (
     <section className="view active" id="view-people">
       <div className="view-header">
-        <h2>Personnel & Facility Locations</h2>
-        <p className="view-subtitle">
-          Review personnel statements, team roles, and facility structures involved in the incident.
-        </p>
+        <h2>People & Locations</h2>
       </div>
 
       <div className="tabs" style={{ marginBottom: '1.5rem' }}>
@@ -35,7 +32,7 @@ export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({
           to="/team/people"
           className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
         >
-          Personnel ({people.length})
+          People ({people.length})
         </NavLink>
         <NavLink
           to="/team/locations"

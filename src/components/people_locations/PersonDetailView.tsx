@@ -70,7 +70,7 @@ export const PersonDetailView: React.FC<PersonDetailViewProps> = ({
       >
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <Link to="/team/people" className="btn btn-secondary btn-small">
-            &larr; Back to all personnel ({people.length})
+            &larr; Back to all people ({people.length})
           </Link>
           <Link
             to={`/timeline?person=${person.id}`}
@@ -84,23 +84,11 @@ export const PersonDetailView: React.FC<PersonDetailViewProps> = ({
           Profile ID: <code>{person.id}</code>
         </span>
       </div>
-
       <PersonCard
         person={person}
         evidenceCount={evidenceCount}
         onViewEvidence={onViewEvidence}
       />
-
-      {person.background && (
-        <div className="card" style={{ marginTop: '1.25rem' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-header)' }}>
-            Background Dossier
-          </h4>
-          <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--color-text)' }}>
-            {person.background}
-          </p>
-        </div>
-      )}
     </div>
   );
 };

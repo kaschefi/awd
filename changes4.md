@@ -8,7 +8,7 @@
 
 We created three focused, presentational components for the views being migrated:
 
-1. **`PersonCard`** ([PersonCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonCard.tsx)):
+1. **`PersonCard`** ([PersonCard.tsx]):
    - Renders a team member's avatar, name, role, speciality, responsibilities list, quote statement, and associated evidence count.
    - Props interface:
      ```tsx
@@ -18,7 +18,7 @@ We created three focused, presentational components for the views being migrated
        onViewEvidence?: (personId: string) => void;
      }
      ```
-2. **`LocationCard`** ([LocationCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/LocationCard.tsx)):
+2. **`LocationCard`** ([LocationCard.tsx]):
    - Renders a facility area (ID, display name, description, and list of contained assets/equipment).
    - Props interface:
      ```tsx
@@ -26,7 +26,7 @@ We created three focused, presentational components for the views being migrated
        location: Location;
      }
      ```
-3. **`TimelineEventCard`** ([TimelineEventCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineEventCard.tsx)):
+3. **`TimelineEventCard`** ([TimelineEventCard.tsx]):
    - Renders a chronological incident log entry with certainty badge styling, formatted timestamp, description, location tags, and evidence quick-view buttons.
    - Props interface:
      ```tsx
@@ -43,7 +43,7 @@ Each component enforces strict TypeScript contracts with no `any` or loose types
 
 #### 2. Built a generic wrapper component taking `children` (composition) and used it in a real place
 
-We created **`Card`** ([Card.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/common/Card.tsx)):
+We created **`Card`** ([Card.tsx]):
 ```tsx
 import React from 'react';
 
@@ -66,7 +66,7 @@ export function Card({ title, className = '', children }: CardProps) {
 ```
 
 **Real usage in the application:**
-Inside both [LocationCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/LocationCard.tsx) and [PersonCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PersonCard.tsx), rather than hardcoding repetitive panel markup or passing raw text as rigid data props, both components compose their inner layout by placing their unique elements directly as `children` of `<Card>`:
+Inside both [LocationCard.tsx] and [PersonCard.tsx], rather than hardcoding repetitive panel markup or passing raw text as rigid data props, both components compose their inner layout by placing their unique elements directly as `children` of `<Card>`:
 
 ```tsx
 // LocationCard using Card

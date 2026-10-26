@@ -134,7 +134,8 @@ async function handleHashChange(): Promise<void> {
   let view = window.location.hash.replace(/^#\/?/, '').trim();
   // Default to 'react/dashboard' if no route hash is specified (home page)
   if (!view) {
-    view = 'react/dashboard';
+    window.location.replace('#/react/dashboard');
+    return;
   }
   const reactContainer = document.getElementById('react-root');
   const vanillaContainer = document.getElementById('vanilla-root');

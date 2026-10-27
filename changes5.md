@@ -1,0 +1,274 @@
+# Exercise 5 — React Interactivity, State & Reactive Programming
+
+## Self-Check Table
+
+| # | Demo | Description | Status |
+|---|---|---|---|
+| 1 | Migrate event handling from vanilla listeners | Static React structure for Evidence & Workspace, migrating inline/vanilla event handlers to JSX synthetic events | Ready |
+| 2 | `useState` & controlled forms | Controlled search box, controlled hypothesis form (inputs, selects, multi-select, range, textareas), draft persistence | Ready |
+| 3 | Immutable updates | Strict non-mutating state transitions, immutable bookmark toggle, preventing master array corruption | ☐ |
+| 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | ☐ |
+| 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | ☐ |
+| 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | ☐ |
+| 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | ☐ |
+| 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | ☐ |
+| 9 | Diagnose & fix common state problems | Audit for duplicated state, stale state, excessive prop drilling, unnecessary global state, and mutations | ☐ |
+| 10 | Remove remaining direct DOM manipulation + wrap-up | Elimination of `querySelector`, manual `classList`, and `innerHTML`; end-to-end declarative React app | ☐ |
+
+---
+
+## Demo 1 — Migrate event handling from vanilla listeners
+
+### Tasks
+
+#### 1. Built Evidence Catalogue and Workspace Static Structure in React
+We constructed the full component trees for the final two views and replaced the `<StubView />` placeholders in [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx):
+
+1. **Evidence Catalogue Components (`src/components/evidence/`)**:
+   - [EvidenceCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceCard.tsx): Displays individual evidence cards with metadata, formatted timestamp, tags, critical banner, review badges, and interactive bookmark button.
+   - [EvidenceToolbar.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceToolbar.tsx): Search input, multi-faceted filter dropdowns (type, person, location, status, relevance), sorting selector, and "Clear filters" button.
+   - [EvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceList.tsx): Grid container rendering cards, handling empty search results, and displaying loading spinners.
+   - [EvidenceDetailModal.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceDetailModal.tsx): Full inspector displaying linked personnel, linked locations, review status dropdown, relevance dropdown, investigator note textarea, and save note button.
+   - [EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx): Main view coordinating toolbar filters, evidence list, and modal inspection.
+
+2. **Investigator Workspace Components (`src/components/workspace/`)**:
+   - [BookmarkedEvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/BookmarkedEvidenceList.tsx): Displays currently bookmarked evidence items with direct "Open" buttons.
+   - [NotesList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/NotesList.tsx): Displays saved notes linked to evidence items with "Open" buttons.
+   - [HypothesisForm.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/HypothesisForm.tsx): Controlled formulation draft form (suspect select, nature select, supporting evidence multi-select, confidence range slider + value display, explanation textarea, alternative textarea, and save button).
+   - [WorkspaceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/WorkspaceView.tsx): Main workspace layout containing bookmarks, notes, and the hypothesis form.
+
+---
+
+#### 2. Migrated Real Event Handlers from Vanilla to React
+
+We migrated multiple real event handlers, replacing DOM-bound listeners and string attributes with React synthetic event handlers:
+
+1. **Bookmark Click Handler**:
+   - *Vanilla Version:* In `src/pages/evidence/script.ts`, cards were rendered as HTML strings with `<button data-action="bookmark" data-id="...">`. A delegated listener was attached to `#evidenceList`, which inspected `event.target.closest('[data-action="bookmark"]')`.
+   - *React Version:* Replaced with declarative JSX `onClick` in [EvidenceCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceCard.tsx):
+     ```tsx
+     const handleBookmarkClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+       e.stopPropagation();
+       onToggleBookmark(evidence.id);
+     };
+
+     <button
+       type="button"
+       className={`bookmark-btn ${isBookmarked ? 'active' : ''}`}
+       onClick={handleBookmarkClick}
+       aria-label={`Toggle bookmark for ${evidence.title}`}
+     >
+       <span className="bookmark-icon">{isBookmarked ? '★' : '☆'}</span>
+     </button>
+     ```
+
+2. **Search Input Handler**:
+   - *Vanilla Version:* In `src/pages/evidence/script.ts`, manually attached via `document.getElementById('evidenceSearch')?.addEventListener('input', handleSearchInput)`.
+   - *React Version:* Co-located directly on the input in [EvidenceToolbar.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceToolbar.tsx) using `onChange`:
+     ```tsx
+     <input
+       type="text"
+       id="evidenceSearch"
+       placeholder="Search evidence by title, summary, or tag…"
+       autoComplete="off"
+       value={searchTerm}
+       onChange={(e) => onSearchChange(e.target.value)}
+     />
+     ```
+
+3. **Save Hypothesis Draft Handler**:
+   - *Vanilla Version:* In `src/pages/workspace/index.html`, used inline HTML attribute `<button onclick="saveHypothesis()">` and `saveBtn.addEventListener('click', saveHypothesis)` in `script.ts`.
+   - *React Version:* Handled cleanly via React's form submission in [HypothesisForm.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/HypothesisForm.tsx):
+     ```tsx
+     <form id="hypothesisForm" onSubmit={handleSaveHypothesis}>
+       ...
+       <button type="submit" className="btn btn-primary">
+         Save hypothesis draft
+       </button>
+     </form>
+     ```
+
+4. **Save Note & Close Detail Handlers**:
+   - *Vanilla Version:* In `src/pages/evidence/script.ts`, attached manually via `closeDetailBtn.addEventListener('click', closeEvidenceDetail)` and `saveNoteBtn.addEventListener('click', saveCurrentNote)`.
+   - *React Version:* Replaced with React `onClick={onClose}` and `onClick={handleSave}` in [EvidenceDetailModal.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceDetailModal.tsx).
+
+---
+
+#### 3. Confirmation: Vanilla Listeners and Inline Attributes Removed
+In the newly mounted React views:
+- Zero inline `onclick="..."` HTML attributes exist.
+- Zero manual `document.getElementById(...).addEventListener(...)` calls exist.
+- React maintains ownership of all event dispatching, binding, and cleanup through Virtual DOM reconciliation.
+
+---
+
+### Questions
+
+#### 1. How do you attach a click handler to a button in React versus how the vanilla version did it (inline `onclick="..."` in the HTML string, or `addEventListener` in JS)? What actually receives the event object in each approach, and is it the same kind of object?
+
+##### Attachment Mechanisms
+- **Vanilla Inline HTML (`onclick="saveHypothesis()"`):**
+  - Specified as a string attribute directly in the HTML template.
+  - The browser executes the string by evaluating it in the global `window` scope when triggered.
+  - It creates hard dependencies on global functions and breaks lexical scoping and encapsulation.
+- **Vanilla DOM API (`element.addEventListener('click', handler)`):**
+  - Imperatively attached in JavaScript after DOM nodes have already been mounted in the document.
+  - Requires looking up elements via DOM selectors (`document.getElementById`).
+  - If elements are re-rendered by updating `innerHTML`, old listeners are lost and new listeners must be re-attached manually, risking memory leaks if not cleaned up.
+- **React (`<button onClick={handleClick}>`):**
+  - Passed declaratively in JSX as an actual JavaScript function reference.
+  - Handled by React's synthetic event system. Event handlers are co-located directly with component markup.
+
+##### What Receives the Event Object & Event Object Comparison
+- **In Vanilla JS:**
+  - The handler receives a native browser **`MouseEvent`** (or `PointerEvent`), dispatched directly by the browser's DOM element.
+  - Its properties and behavior can vary slightly between browser engines (e.g., event bubbling details, normalized buttons).
+- **In React:**
+  - The handler receives a **`SyntheticEvent`** (specifically `React.MouseEvent<HTMLButtonElement>`).
+  - It is **NOT** the same object: `SyntheticEvent` is React's cross-browser wrapper that wraps the native browser event.
+  - It normalizes event properties (`target`, `currentTarget`, `preventDefault()`, `stopPropagation()`) so that behavior is completely identical across all browsers and operating systems.
+  - The underlying native browser event remains accessible via `e.nativeEvent`.
+
+---
+
+#### 2. The vanilla version's evidence-list click handling used event delegation (one listener on the container, checking `event.target`) partly to work around listeners being re-registered on every render. Do you still need that pattern in React? Why or why not?
+
+##### Why the Vanilla Version Required Event Delegation
+In `src/pages/evidence/script.ts`, every time a user typed in the search box or changed a filter, `renderEvidenceList()` rebuilt the list by rewriting `container.innerHTML = htmlString`.
+- If individual event listeners had been attached to each card or bookmark button, every render pass would destroy those DOM elements and discard the listeners.
+- Re-attaching listeners after each render required traversing the DOM with `querySelectorAll`, creating performance overhead and risking detached listener memory leaks.
+- Vanilla used event delegation on `#evidenceList` (`e.target.closest('.evidence-card')`) so that a single container listener could survive the destruction of child DOM elements.
+
+##### Why Event Delegation Is Not Needed in React
+**You do NOT need to write manual event delegation in React.**
+1. **React Automatically Delegates at the Root:** React already implements event delegation under the hood. When you write `<button onClick={handleBookmark}>` on 50 evidence cards, React does not attach 50 individual native event listeners to DOM nodes. Instead, React attaches a single top-level event listener at the root container (`#root`) and dispatches incoming events to the appropriate component handlers by walking its internal fiber tree.
+2. **Stable Reconciliation:** React does not destroy and recreate the DOM using `innerHTML`. It uses Virtual DOM diffing (reconciliation) to patch only modified DOM attributes and text nodes, preserving DOM node stability.
+3. **Component Encapsulation:** In React, attaching `onClick` directly to `<EvidenceCard>` co-locates the behavior with the component. You write clean, direct handlers without writing fragile DOM-traversal code like `event.target.closest('[data-action="bookmark"]')`.
+
+---
+
+## Demo 2 — `useState` & controlled forms
+
+### Tasks
+
+#### 1. Evidence Search Box as a Controlled Input
+In [src/components/evidence/EvidenceToolbar.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceToolbar.tsx), the search box is fully controlled via `value` and `onChange`:
+```tsx
+<input
+  type="text"
+  id="evidenceSearch"
+  placeholder="Search evidence by title, summary, or tag…"
+  autoComplete="off"
+  value={searchTerm}
+  onChange={(e) => onSearchChange(e.target.value)}
+/>
+```
+The state is owned by [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx):
+```tsx
+const [searchTerm, setSearchTerm] = useState('');
+```
+Every keystroke dispatches `setSearchTerm(e.target.value)`, synchronizing React state with the input and triggering real-time derived filtering of the evidence cards during render.
+
+---
+
+#### 2. Fully Controlled Hypothesis Form
+In [src/components/workspace/HypothesisForm.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/HypothesisForm.tsx), all 6 diverse input fields are strictly controlled:
+- **Suspect Dropdown (`<select>`):**
+  `value={draft.suspect}` with `onChange={(e) => updateDraft('suspect', e.target.value)}`
+- **Incident Nature Dropdown (`<select>`):**
+  `value={draft.nature}` with `onChange={(e) => updateDraft('nature', e.target.value as ...)}`
+- **Supporting Evidence Multi-Select (`<select multiple>`):**
+  `value={draft.evidenceIds}` with `onChange={handleEvidenceSelectChange}`, reading `e.target.selectedOptions` to convert selections into an array of string IDs.
+- **Confidence Range Slider (`<input type="range">`) & `<output>`:**
+  `value={draft.confidence}` with `onChange={(e) => updateDraft('confidence', Number(e.target.value))}`, and the `<output id="hypConfidenceValue">{draft.confidence}</output>` bound synchronously to state.
+- **Written Explanation (`<textarea>`):**
+  `value={draft.explanation}` with `onChange={(e) => updateDraft('explanation', e.target.value)}`
+- **Alternative Explanation (`<textarea>`):**
+  `value={draft.alternative}` with `onChange={(e) => updateDraft('alternative', e.target.value)}`
+
+---
+
+#### 3. Draft Persistence to `localStorage` from Controlled State
+In `HypothesisForm.tsx`, saving reads directly from the controlled `draft` state object and serializes it:
+```tsx
+const handleSaveHypothesis = (e: React.FormEvent) => {
+  e.preventDefault();
+
+  const storagePayload = {
+    ...draft,
+    suspectId: draft.suspect,
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEY_HYPOTHESIS, JSON.stringify(storagePayload));
+  onSave?.(draft);
+
+  setShowSavedMsg(true);
+  setTimeout(() => setShowSavedMsg(false), 2000);
+};
+```
+On initial component mount (`useEffect`), the draft is loaded from `localStorage` and hydrates the controlled state in one atomic `setDraft(...)` call, ensuring form inputs display the persisted data upon reload.
+
+---
+
+### Questions
+
+#### 1. What makes an input "controlled" versus "uncontrolled" in React? Show what happens if you try to type in one of your controlled inputs without wiring its `onChange` and explain, in terms of React's render cycle, *why* that happens.
+
+##### Controlled vs. Uncontrolled Inputs
+- **Uncontrolled Input:**
+  - The browser's native DOM node (`HTMLInputElement`) owns and mutates its own internal state (`input.value`).
+  - React does not track changes on every keystroke. React only queries the DOM value when needed, typically via a `ref` (`inputRef.current.value`) or on form submission.
+- **Controlled Input:**
+  - React component state (`useState`) is the **single source of truth** for the input's current value.
+  - The input is explicitly bound via `value={stateVariable}`.
+  - Any user keystroke generates an event (`onChange`), which invokes a state setter (`setState(e.target.value)`).
+  - The input visually updates only because React re-renders the component with the new state value.
+
+##### What Happens Without `onChange`
+If you provide a `value` prop without an `onChange` handler:
+```tsx
+<input type="text" value={searchTerm} /> // No onChange handler wired!
+```
+**Observable Result:** The input box is completely **frozen**. Typing on the keyboard produces no visible text whatsoever.
+
+##### Why This Happens (In Terms of React's Render Cycle)
+1. **Keystroke / Browser Input Event:** The user presses a key (e.g., `'K'`). The browser's native input element internally attempts to append `'K'` and dispatches a native `input` / `change` event.
+2. **Missing State Transition:** Because no `onChange` handler is wired, no React state updater is called. React's state variable (`searchTerm`) remains unchanged (e.g. `""`).
+3. **Re-render / Reconciliation Enforcement:** Whether in the current tick or on any subsequent re-render, React's Virtual DOM specifies that this `<input>` element must have `value=""`.
+4. **DOM Property Reset:** React's reconciliation engine forces the real DOM node's property back into alignment with the Virtual DOM: `domElement.value = ""`.
+5. Every single keystroke is immediately overwritten and discarded by React, locking the input.
+
+---
+
+#### 2. The hypothesis form has several different input types (select, multi-select, range, textarea). Did you use one `useState` per field, or a single object? Justify your choice — and note this question again once you get to Demo 7 (`useReducer`), which asks you to reconsider it for a different form.
+
+##### Our Architectural Choice: A Single State Object
+In [src/components/workspace/HypothesisForm.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/HypothesisForm.tsx), we chose a **single state object**:
+```tsx
+export interface HypothesisDraft {
+  suspect: string;
+  nature: 'accidental' | 'deliberate' | 'unclear' | '';
+  evidenceIds: string[];
+  confidence: number;
+  explanation: string;
+  alternative: string;
+}
+
+const [draft, setDraft] = useState<HypothesisDraft>(initialDraft);
+```
+
+##### Justification
+1. **Cohesive Domain Entity:** The hypothesis draft is a single, unified document. The 6 fields do not have independent lifecycles; they are drafted together, submitted together, and saved as a single JSON payload in `localStorage` under `STORAGE_KEY_HYPOTHESIS`.
+2. **Atomic Hydration and Resets:** When loading from `localStorage` on mount (or resetting the form), a single `setDraft(savedDraft)` call updates all 6 fields in a single render pass, avoiding 6 separate re-render dispatches or intermediate inconsistent states.
+3. **Generic Field Updater:** We maintain a single, type-safe updater helper using immutable object spread:
+   ```tsx
+   const updateDraft = <K extends keyof HypothesisDraft>(field: K, value: HypothesisDraft[K]) => {
+     setDraft(prev => ({ ...prev, [field]: value }));
+   };
+   ```
+
+##### Reconsidering for Demo 7 (`useReducer`)
+A single `useState` object works well when field transitions are simple key-value replacements (`[field]: value`). However, in **Demo 7**, we will encounter the **Evidence Filter Toolbar**, where state updates are not simple independent field edits:
+- Resetting filters requires clearing 7 interdependent fields back to defaults simultaneously (`CLEAR_FILTERS`).
+- Selecting a specific person or location might constrain or invalidate status/type selections.
+- Complex state transitions with business rules are much more safely and cleanly encapsulated in a pure reducer function rather than scattered across component event handlers.

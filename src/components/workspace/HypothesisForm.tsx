@@ -8,17 +8,22 @@ export interface HypothesisFormProps {
   onSave?: (draft: HypothesisDraft) => void;
 }
 
+const initialDraft: HypothesisDraft = {
+  suspect: '',
+  nature: '',
+  evidenceIds: [],
+  confidence: 50,
+  explanation: '',
+  alternative: '',
+};
+
 export const HypothesisForm: React.FC<HypothesisFormProps> = ({
   people,
   evidence,
   onSave,
 }) => {
-  const [suspect, setSuspect] = useState('');
-  const [nature, setNature] = useState<'accidental' | 'deliberate' | 'unclear' | ''>('');
-  const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
-  const [confidence, setConfidence] = useState(50);
-  const [explanation, setExplanation] = useState('');
-  const [alternative, setAlternative] = useState('');
+  // Demo 2: Single object state for all form fields
+  const [draft, setDraft] = useState<HypothesisDraft>(initialDraft);
   const [showSavedMsg, setShowSavedMsg] = useState(false);
 
   // Load saved hypothesis draft on mount from localStorage
@@ -27,45 +32,40 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
       const raw = localStorage.getItem(STORAGE_KEY_HYPOTHESIS);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed.suspectId || parsed.suspect) setSuspect(parsed.suspectId || parsed.suspect);
-        if (parsed.nature) setNature(parsed.nature);
-        if (Array.isArray(parsed.evidenceIds)) setSelectedEvidenceIds(parsed.evidenceIds);
-        if (parsed.confidence !== undefined) setConfidence(Number(parsed.confidence));
-        if (parsed.explanation) setExplanation(parsed.explanation);
-        if (parsed.alternative) setAlternative(parsed.alternative);
+        setDraft({
+          suspect: parsed.suspectId || parsed.suspect || '',
+          nature: parsed.nature || '',
+          evidenceIds: Array.isArray(parsed.evidenceIds) ? parsed.evidenceIds : [],
+          confidence: parsed.confidence !== undefined ? Number(parsed.confidence) : 50,
+          explanation: parsed.explanation || '',
+          alternative: parsed.alternative || '',
+        });
       }
     } catch (err) {
       console.warn('Failed to load hypothesis draft from storage:', err);
     }
   }, []);
 
+  const updateDraft = <K extends keyof HypothesisDraft>(field: K, value: HypothesisDraft[K]) => {
+    setDraft((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
   const handleEvidenceSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
-    setSelectedEvidenceIds(selectedOptions);
+    updateDraft('evidenceIds', selectedOptions);
   };
 
   const handleSaveHypothesis = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const draft: HypothesisDraft = {
-      suspect,
-      nature,
-      evidenceIds: selectedEvidenceIds,
-      confidence,
-      explanation,
-      alternative,
-    };
-
     try {
-      // Legacy compatibility format
+      // Legacy compatibility format for any vanilla scripts reading storage
       const storagePayload = {
-        suspectId: suspect,
-        suspect,
-        nature,
-        evidenceIds: selectedEvidenceIds,
-        confidence,
-        explanation,
-        alternative,
+        ...draft,
+        suspectId: draft.suspect,
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(STORAGE_KEY_HYPOTHESIS, JSON.stringify(storagePayload));
@@ -87,8 +87,8 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
           <label htmlFor="hypSuspect">Suspected responsible person</label>
           <select
             id="hypSuspect"
-            value={suspect}
-            onChange={(e) => setSuspect(e.target.value)}
+            value={draft.suspect}
+            onChange={(e) => updateDraft('suspect', e.target.value)}
           >
             <option value="">Select a person…</option>
             {people.map((p) => (
@@ -103,9 +103,12 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
           <label htmlFor="hypNature">Accidental or deliberate incident</label>
           <select
             id="hypNature"
-            value={nature}
+            value={draft.nature}
             onChange={(e) =>
-              setNature(e.target.value as 'accidental' | 'deliberate' | 'unclear' | '')
+              updateDraft(
+                'nature',
+                e.target.value as 'accidental' | 'deliberate' | 'unclear' | ''
+              )
             }
           >
             <option value="">Select…</option>
@@ -121,7 +124,7 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
             id="hypEvidence"
             multiple
             size={6}
-            value={selectedEvidenceIds}
+            value={draft.evidenceIds}
             onChange={handleEvidenceSelectChange}
           >
             {evidence.map((ev) => (
@@ -139,10 +142,10 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
             id="hypConfidence"
             min="0"
             max="100"
-            value={confidence}
-            onChange={(e) => setConfidence(Number(e.target.value))}
+            value={draft.confidence}
+            onChange={(e) => updateDraft('confidence', Number(e.target.value))}
           />
-          <output id="hypConfidenceValue">{confidence}</output>
+          <output id="hypConfidenceValue">{draft.confidence}</output>
         </div>
 
         <div className="form-row">
@@ -151,8 +154,8 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
             id="hypExplanation"
             rows={4}
             placeholder="Explain your reasoning…"
-            value={explanation}
-            onChange={(e) => setExplanation(e.target.value)}
+            value={draft.explanation}
+            onChange={(e) => updateDraft('explanation', e.target.value)}
           />
         </div>
 
@@ -162,8 +165,8 @@ export const HypothesisForm: React.FC<HypothesisFormProps> = ({
             id="hypAlternative"
             rows={3}
             placeholder="What else could explain the evidence?"
-            value={alternative}
-            onChange={(e) => setAlternative(e.target.value)}
+            value={draft.alternative}
+            onChange={(e) => updateDraft('alternative', e.target.value)}
           />
         </div>
 

@@ -7,7 +7,7 @@
 | 1 | Migrate event handling from vanilla listeners | Static React structure for Evidence & Workspace, migrating inline/vanilla event handlers to JSX synthetic events | Ready |
 | 2 | `useState` & controlled forms | Controlled search box, controlled hypothesis form (inputs, selects, multi-select, range, textareas), draft persistence | Ready |
 | 3 | Immutable updates | Strict non-mutating state transitions, immutable bookmark toggle, preventing master array corruption | Ready |
-| 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | ☐ |
+| 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | Ready |
 | 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | ☐ |
 | 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | ☐ |
 | 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | ☐ |
@@ -391,4 +391,109 @@ The original insertion order of the master dataset was permanently lost. When th
    The spread operator `[...matches]` explicitly allocates a **brand-new array instance in memory**. Calling `.sort()` only mutates this temporary, local array projection. The underlying `evidenceList` array stored in React state is never touched.
 3. **No Flag Mutation on Objects:**
    In vanilla, bookmarking did `ev.bookmarked = true`. If `ev` was shared across views, mutating that property could conflict with other views. In our React implementation, `evidence` objects are read-only; bookmark status is derived purely from the immutable `bookmarks: string[]` array.
+
+---
+
+## Demo 4 — Derived values vs. stored state
+
+### Tasks
+
+#### 1. Evidence Filtering and Sorting Computed Entirely During Render
+In [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx), the filtered and sorted evidence collection is **computed synchronously during render** using `useMemo`:
+```tsx
+const filteredAndSortedEvidence = useMemo(() => {
+  const term = searchTerm.toLowerCase().trim();
+
+  const matches = evidenceList.filter((item) => {
+    if (term) {
+      const haystack = (item.title + ' ' + item.summary + ' ' + (item.tags || []).join(' ')).toLowerCase();
+      if (haystack.indexOf(term) === -1) return false;
+    }
+    if (filterType && item.type.toLowerCase() !== filterType.toLowerCase()) return false;
+    if (filterPerson) {
+      const pIds = item.personIds || [];
+      const person = people.find((p) => p.id === filterPerson);
+      const personName = person ? person.name : '';
+      if (!pIds.includes(filterPerson) && (!personName || !pIds.includes(personName))) return false;
+    }
+    if (filterLocation && (!item.locationIds || !item.locationIds.includes(filterLocation))) return false;
+    if (filterStatus && (item.status || '').toLowerCase() !== filterStatus.toLowerCase()) return false;
+    if (filterRelevance && (item.relevance || '').toLowerCase() !== filterRelevance.toLowerCase()) return false;
+    return true;
+  });
+
+  return [...matches].sort((a, b) => {
+    if (sortValue === 'title-asc') return a.title.localeCompare(b.title);
+    if (sortValue === 'title-desc') return b.title.localeCompare(a.title);
+    if (sortValue === 'date-asc') return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+  });
+}, [evidenceList, searchTerm, filterType, filterPerson, filterLocation, filterStatus, filterRelevance, sortValue, people]);
+```
+- There is **no** `const [filteredEvidence, setFilteredEvidence] = useState(...)`.
+- The list is a pure projection of `evidenceList` and the active filter/sort controls. It can never drift out of sync.
+
+---
+
+#### 2. Single Source of Truth for Bookmarks and Counts Across Views
+- **Dashboard Bookmark Count** ([src/components/dashboard/DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx)):
+  Passed directly as `bookmarkCount={bookmarks.length}` to `StatGrid`. It is not stored in state as a separate counter integer.
+- **Dashboard Review Progress & Counts**:
+  `reviewedCount` is derived via:
+  ```tsx
+  const reviewedCount = useMemo(() => {
+    return evidence.filter((item) => (item.status || '').toLowerCase() === 'reviewed').length;
+  }, [evidence]);
+  ```
+  `progressPct` is derived via:
+  ```tsx
+  const progressPct = useMemo(() => {
+    return evidence.length === 0 ? 0 : Math.round((reviewedCount / evidence.length) * 100);
+  }, [evidence.length, reviewedCount]);
+  ```
+- **Workspace Bookmarked Items** ([src/components/workspace/BookmarkedEvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/BookmarkedEvidenceList.tsx)):
+  Computed during render directly:
+  ```tsx
+  const bookmarkedItems = evidence.filter((ev) => bookmarks.includes(ev.id));
+  ```
+  No duplicated array of bookmarked objects is maintained in state.
+
+---
+
+### Questions
+
+#### 1. What's the rule for deciding whether something belongs in `useState` versus being computed inline (or via `useMemo`) during render? Apply that rule to the filtered evidence list and justify your answer.
+
+##### The Architectural Rule
+> **"Don't put in state what you can compute during render from existing props and state."**
+
+To determine if any data belongs in `useState`, ask three questions:
+1. *Does it remain constant across the component's lifecycle?* If yes, it is a constant.
+2. *Is it passed into the component from a parent via props?* If yes, it is a prop, not state.
+3. *Can it be computed from existing state or props?* If yes, it is **derived data; never store it in `useState`**.
+
+##### Application to the Filtered Evidence List
+- The filtered and sorted list is an exact mathematical projection:
+  $$\text{filteredEvidence} = f(\text{allEvidence}, \text{searchTerm}, \text{filters}, \text{sortBy})$$
+- **What would go wrong if stored in `useState`:**
+  - If we had `const [filteredList, setFilteredList] = useState([])`:
+  - Every time `searchTerm` changed, we would need to trigger an effect or setter call `setFilteredList(...)`.
+  - This would force **two consecutive render cycles** for every single keystroke or dropdown change: the first render updates the filter input, and the second render updates the list.
+  - It creates opportunities for race conditions, intermediate stale frames, and desynchronization (e.g., if an evidence item's review status or relevance was updated in the detail modal, `filteredList` would remain stale unless someone remembered to re-run the filtering logic).
+- **By computing it during render** (using `useMemo` to skip recomputation when dependencies haven't changed), the list is **guaranteed to be 100% fresh, instantaneous, and mathematically consistent** on every single render tick.
+
+---
+
+#### 2. The vanilla app had two related bugs here: a dashboard bookmark count that could go stale (because it only re-rendered on a view's first visit), and a `filteredEvidence` variable that was sometimes literally the *same array reference* as the master list. Explain, concretely, why deriving these values during render instead of storing them makes **both** of those bug classes structurally impossible, not just less likely.
+
+##### Concrete Analysis of Why Both Bug Classes Are Structurally Prevented
+
+1. **Elimination of the Stale Dashboard Bookmark Count Bug:**
+   - *How the vanilla bug occurred:* The vanilla dashboard calculated the bookmark count once when the view first initialized (`renderDashboard()`) and imperatively stamped that integer into the DOM text (`<div id="statBookmarks">0</div>`). When the user navigated away to Evidence, bookmarked items, and navigated back to the Dashboard, the dashboard DOM was never updated. Storing the count as a static value in DOM memory caused it to become stale.
+   - *Why deriving in React makes it structurally impossible:* In our React architecture, the dashboard does not store a count variable anywhere in state or DOM. It receives `bookmarks` and renders `{bookmarks.length}`. Whenever `bookmarks` state updates, React invokes the dashboard's render function, evaluating `{bookmarks.length}` on the fly. It is structurally impossible for the count to be stale because there is **no secondary storage location** in memory where a stale count could exist.
+
+2. **Elimination of the Shared Array Reference Bug:**
+   - *How the vanilla bug occurred:* In `src/pages/evidence/script.ts`, `state.filteredEvidence` was a persistent variable on the global store. When no filters were selected, the code assigned `state.filteredEvidence = state.allEvidence`. Because JavaScript passes arrays by reference, `state.filteredEvidence` pointed to the exact same array in heap memory as `state.allEvidence`. Calling `.sort()` on `filteredEvidence` directly mutated the master `allEvidence` array, destroying its original order permanently.
+   - *Why deriving in React makes it structurally impossible:* In React, `filteredAndSortedEvidence` is a transient local variable computed inside `useMemo` via `.filter(...)`. By specification (ECMAScript), `Array.prototype.filter()` **always returns a brand-new array instance**, even if every element matches. The subsequent `[...matches].sort(...)` sorts only this freshly allocated projection. The master array in `useState` is never referenced as the filtered array, nor is it ever exposed to sorting. Shared-reference mutation is prevented by construction.
+
 

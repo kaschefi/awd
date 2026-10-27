@@ -29,6 +29,8 @@ export const AppContent: React.FC = () => {
     }
   });
 
+  const [selectedPersonFilter, setSelectedPersonFilter] = React.useState<string | null>(null);
+
   const handleSaveNote = (evidenceId: string, noteText: string) => {
     setNotesStore((prev) => {
       const next = { ...prev, [evidenceId]: noteText };
@@ -44,14 +46,9 @@ export const AppContent: React.FC = () => {
   };
 
   const handleNavigateToEvidence = (personId: string) => {
+    // Demo 10: Pure declarative routing with zero DOM manipulation
+    setSelectedPersonFilter(personId);
     window.location.hash = '#/evidence';
-    setTimeout(() => {
-      const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
-      if (filterEl) {
-        filterEl.value = personId;
-        filterEl.dispatchEvent(new Event('change'));
-      }
-    }, 50);
   };
 
   return (
@@ -82,6 +79,7 @@ export const AppContent: React.FC = () => {
             element={
               <EvidenceView
                 initialSelectedId={selectedEvidenceId}
+                initialPersonFilter={selectedPersonFilter}
                 onSaveNote={handleSaveNote}
               />
             }

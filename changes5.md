@@ -13,7 +13,7 @@
 | 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | Ready |
 | 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | Ready |
 | 9 | Diagnose & fix common state problems | Audit for duplicated state, stale state, excessive prop drilling, unnecessary global state, and mutations | Ready |
-| 10 | Remove remaining direct DOM manipulation + wrap-up | Elimination of `querySelector`, manual `classList`, and `innerHTML`; end-to-end declarative React app | ☐ |
+| 10 | Remove remaining direct DOM manipulation + wrap-up | Elimination of `querySelector`, manual `classList`, and `innerHTML`; end-to-end declarative React app | Ready |
 
 ---
 
@@ -1152,6 +1152,119 @@ When updating an array or object in React:
 - React's reconciliation engine uses shallow reference equality (`Object.is`) to detect when state changes.
 - Because the master dataset is immutable, projecting a sorted or filtered view (`filteredAndSortedEvidence = useMemo(...)`) operates on an isolated projection without ever altering the source data.
 - The defect from Exercise 1 is therefore structurally eliminated by design.
+
+---
+
+## Demo 10 — Remove remaining direct DOM manipulation + wrap-up
+
+### Tasks
+
+#### 1. Codebase Sweep for Manual DOM Operations
+We conducted a comprehensive codebase audit across all five primary application views, verifying zero manual DOM manipulation remains:
+1. **Case Dashboard (`src/components/dashboard/`)**: All metrics, progress bars, recent lists, and status indicators render via declarative JSX driven by `usePortalData` and `BookmarkContext`.
+2. **People & Locations (`src/components/people_locations/`)**: Master-detail views, modal popups, and tab navigation operate purely through React state and sub-routes.
+3. **Case Timeline (`src/components/timeline/`)**: Event chronological list, category/importance filters, and inspector modals run declaratively via React hooks.
+4. **Evidence Catalogue (`src/components/evidence/`)**: All card rendering, multi-attribute filtering, sorting, review status badges, and inspection modals are managed by `useReducer`, `useMemo`, and `BookmarkContext`.
+5. **Investigator Workspace (`src/components/workspace/`)**: Bookmarks list, note list, and hypothesis draft form operate entirely on controlled components and declarative props.
+
+---
+
+#### 2. Elimination of the Final Legacy DOM Query
+During our sweep, we identified one remaining legacy DOM manipulation in [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx):
+```tsx
+// Before (legacy hack from hybrid migration):
+const handleNavigateToEvidence = (personId: string) => {
+  window.location.hash = '#/evidence';
+  setTimeout(() => {
+    const filterEl = document.getElementById('filterPerson') as HTMLSelectElement | null;
+    if (filterEl) {
+      filterEl.value = personId;
+      filterEl.dispatchEvent(new Event('change'));
+    }
+  }, 50);
+};
+```
+We removed `document.getElementById('filterPerson')`, `setTimeout`, and `dispatchEvent(new Event('change'))`. We replaced it with pure React state and declarative prop passing:
+1. In [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx):
+   ```tsx
+   const [selectedPersonFilter, setSelectedPersonFilter] = React.useState<string | null>(null);
+
+   const handleNavigateToEvidence = (personId: string) => {
+     setSelectedPersonFilter(personId);
+     window.location.hash = '#/evidence';
+   };
+   ```
+2. In [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx):
+   Accepts `initialPersonFilter` and synchronizes it into the reducer state declaratively:
+   ```tsx
+   useEffect(() => {
+     if (initialPersonFilter) {
+       dispatch({
+         type: 'SET_FILTER',
+         payload: { filterKey: 'filterPerson', value: initialPersonFilter },
+       });
+     }
+   }, [initialPersonFilter]);
+   ```
+
+**Result:** The entire application (all 5 views and navigation workflows) runs 100% on React state, props, reducers, and context. There is **zero manual DOM manipulation** anywhere in the runtime.
+
+---
+
+### Questions
+
+#### 1. Show one state-management decision you made somewhere in this exercise (state ownership, `useState` vs. `useReducer`, prop drilling vs. Context, or something else) that you're not 100% sure was the right call. Explain the trade-off honestly, both directions.
+
+##### The Decision: Lifting `notesStore` via Props vs. Merging into a Dedicated Context
+In Demo 6, we lifted `notesStore` to `AppContent` in [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx), passing `onSaveNote` down into `EvidenceView` $\to$ `EvidenceDetailModal`, and passing `notesStore` into `WorkspaceView` $\to$ `NotesList`. Later in Demo 8, while bookmarks were migrated to `BookmarkContext`, notes remained prop-drilled.
+
+##### The Trade-off Evaluated in Both Directions
+
+**Argument for Migrating Notes to Context (The Alternative):**
+- **Cleaner Component Interfaces:** `EvidenceView` acts purely as a middleman passing `onSaveNote` to `EvidenceDetailModal`. It has no domain need for notes. Moving notes into a Context would eliminate this 2-layer callback drilling.
+- **Symmetric Architecture:** Bookmarks and Notes are both persistent investigator annotations attached to evidence items. Having bookmarks in Context while notes are in props introduces an architectural asymmetry that future developers might find arbitrary.
+
+**Argument for Keeping Notes in Props / Separate State (Our Chosen Decision):**
+- **Prevents Coarse Context Re-rendering Blast Radius:** If notes had been merged into the same Context as bookmarks (`InvestigationContext`), every time an investigator typed or saved a note in the modal, **every single subscriber to bookmarks (including all 20+ Evidence cards and the Dashboard metrics) would be forced to re-render**.
+- **Explicit Dependency Contracts:** By passing `notesStore` and `onSaveNote` as explicit props, TypeScript enforces strict compile-time visibility of who reads and writes notes. Components like `NotesList` remain completely decoupled from ambient providers and can be easily tested in isolation.
+
+**Verdict:** While prop drilling `onSaveNote` through `EvidenceView` feels slightly verbose, preserving isolated re-render boundaries and clear component contracts was the safer engineering trade-off at this app scale.
+
+---
+
+#### 2. Across Exercises 3–5, name one bug category from the *original* vanilla app (Exercise 1's defect list) that is now, by construction, no longer possible in your React version — not just fixed, but structurally prevented. Explain why the React architecture rules it out.
+
+##### Structurally Prevented Bug Category: Stale Multi-View Metric Synchronization (The Decoupled DOM Bug)
+
+In the original vanilla JavaScript application from Exercise 1, the most prevalent and insidious bug category was **stale UI elements caused by decoupled DOM updates**.
+
+##### Why It Happened in Vanilla JavaScript
+In vanilla JS, the DOM and JavaScript memory are completely disconnected:
+1. When the Dashboard loaded, the script executed:
+   ```js
+   document.getElementById('statBookmarks').textContent = state.bookmarks.length.toString();
+   ```
+2. When the user navigated to the Evidence page and clicked "Bookmark" on an item:
+   ```js
+   state.bookmarks.push(evidenceId);
+   ```
+3. The data in `state.bookmarks` changed, but the Dashboard DOM element remained permanently frozen displaying the old count.
+4. To fix this in vanilla, the developer had to manually hunt down every DOM node across all tabs that might depend on bookmarks and imperatively rewrite their `.textContent` or `.innerHTML`. If any view forgot to call that update function, or if an element was re-rendered without it, the UI silently diverged from reality.
+
+##### Why React Structurally Prevents This by Construction
+In React's declarative programming model:
+$$\text{UI} = f(\text{State})$$
+The DOM is never imperatively manipulated; it is a **pure synchronous projection of reactive state**.
+1. In [src/components/dashboard/DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx), the bookmark count is not stored as an independent DOM string or separate integer state. It is derived during the render pass directly from the shared context:
+   ```tsx
+   const { bookmarks } = useBookmarks();
+   ...
+   <StatGrid ... bookmarkCount={bookmarks.length} />
+   ```
+2. When any evidence card invokes `toggleBookmark(id)`, `BookmarkProvider` updates the `bookmarks` array reference.
+3. React's reconciliation scheduler automatically flags all subscriber components (`DashboardView`, `BookmarkedEvidenceList`, `EvidenceCard`) as dirty and re-computes their JSX output.
+4. There is **no intermediate manual step, no DOM query, and no event dispatch pipeline** that can be forgotten. It is mathematically impossible for the displayed count to differ from `bookmarks.length` because the DOM has no independent existence separate from the state projection.
+
 
 
 

@@ -17,6 +17,7 @@ import type { Evidence, EvidenceStatus, EvidenceRelevance } from '../../types.js
 
 export interface EvidenceViewProps {
   initialSelectedId?: string | null;
+  initialPersonFilter?: string | null;
   bookmarks?: string[];
   onToggleBookmark?: (id: string) => void;
   onSaveNote?: (evidenceId: string, noteText: string) => void;
@@ -25,6 +26,7 @@ export interface EvidenceViewProps {
 
 export const EvidenceView: React.FC<EvidenceViewProps> = ({
   initialSelectedId = null,
+  initialPersonFilter = null,
   bookmarks: propBookmarks,
   onToggleBookmark: propToggleBookmark,
   onSaveNote: propSaveNote,
@@ -45,6 +47,16 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       setEvidenceList(masterEvidence);
     }
   }, [masterEvidence]);
+
+  // Demo 10: Declarative person filter synchronization (eliminates manual DOM manipulation)
+  useEffect(() => {
+    if (initialPersonFilter) {
+      dispatch({
+        type: 'SET_FILTER',
+        payload: { filterKey: 'filterPerson', value: initialPersonFilter },
+      });
+    }
+  }, [initialPersonFilter]);
 
   // Extract unique types for dropdown
   const uniqueTypes = useMemo(() => {

@@ -9,7 +9,13 @@ import { TimelineView } from './components/timeline/TimelineView.js';
 
 import { EvidenceView } from './components/evidence/EvidenceView.js';
 import { WorkspaceView } from './components/workspace/WorkspaceView.js';
-import { state, STORAGE_KEY_BOOKMARKS, saveBookmarksToStorage } from './state.js';
+import {
+  state,
+  STORAGE_KEY_BOOKMARKS,
+  saveBookmarksToStorage,
+  STORAGE_KEY_NOTES,
+  saveNoteForEvidence,
+} from './state.js';
 
 export const AppContent: React.FC = () => {
   const [selectedEvidenceId, setSelectedEvidenceId] = React.useState<string | null>(null);
@@ -28,12 +34,31 @@ export const AppContent: React.FC = () => {
     }
   });
 
+  // Demo 6: Lifted notes state with downward callback
+  const [notesStore, setNotesStore] = React.useState<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_NOTES);
+      return raw ? (JSON.parse(raw) as Record<string, string>) : state.notesStore;
+    } catch {
+      return state.notesStore;
+    }
+  });
+
   const handleToggleBookmark = (id: string) => {
     setBookmarks((prev) => {
       const exists = prev.includes(id);
       const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
       state.bookmarks = next;
       saveBookmarksToStorage();
+      return next;
+    });
+  };
+
+  const handleSaveNote = (evidenceId: string, noteText: string) => {
+    setNotesStore((prev) => {
+      const next = { ...prev, [evidenceId]: noteText };
+      state.notesStore = next;
+      saveNoteForEvidence(evidenceId, noteText);
       return next;
     });
   };
@@ -84,6 +109,7 @@ export const AppContent: React.FC = () => {
                 initialSelectedId={selectedEvidenceId}
                 bookmarks={bookmarks}
                 onToggleBookmark={handleToggleBookmark}
+                onSaveNote={handleSaveNote}
               />
             }
           />
@@ -92,6 +118,7 @@ export const AppContent: React.FC = () => {
             element={
               <WorkspaceView
                 bookmarks={bookmarks}
+                notesStore={notesStore}
                 onOpenEvidence={handleOpenEvidence}
               />
             }

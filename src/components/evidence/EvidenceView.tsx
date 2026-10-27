@@ -15,6 +15,7 @@ export interface EvidenceViewProps {
   initialSelectedId?: string | null;
   bookmarks?: string[];
   onToggleBookmark?: (id: string) => void;
+  onSaveNote?: (evidenceId: string, noteText: string) => void;
   onNavigateToWorkspace?: () => void;
 }
 
@@ -22,6 +23,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   initialSelectedId = null,
   bookmarks: propBookmarks,
   onToggleBookmark: propToggleBookmark,
+  onSaveNote: propSaveNote,
 }) => {
   const { evidence: masterEvidence, people, locations, bookmarks: initialBookmarks, isLoading } =
     usePortalData();
@@ -160,7 +162,11 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   };
 
   const handleSaveNote = (evidenceId: string, noteText: string) => {
-    saveNoteForEvidence(evidenceId, noteText);
+    if (propSaveNote) {
+      propSaveNote(evidenceId, noteText);
+    } else {
+      saveNoteForEvidence(evidenceId, noteText);
+    }
   };
 
   const selectedEvidence = useMemo(() => {

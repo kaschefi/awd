@@ -8,21 +8,24 @@ import { state, loadNotesFromStorage } from '../../state.js';
 
 export interface WorkspaceViewProps {
   bookmarks?: string[];
+  notesStore?: Record<string, string>;
   onOpenEvidence?: (evidenceId: string) => void;
 }
 
 export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   bookmarks: propBookmarks,
+  notesStore: propNotesStore,
   onOpenEvidence,
 }) => {
   const navigate = useNavigate();
   const { evidence, people, bookmarks: portalBookmarks } = usePortalData();
   const bookmarks = propBookmarks ?? portalBookmarks;
-  const [notes, setNotes] = useState<Record<string, string>>(() => ({ ...state.notesStore }));
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>(() => ({ ...state.notesStore }));
+  const notes = propNotesStore ?? localNotes;
 
   useEffect(() => {
     loadNotesFromStorage();
-    setNotes({ ...state.notesStore });
+    setLocalNotes({ ...state.notesStore });
   }, []);
 
   const handleOpenEvidence = (evidenceId: string) => {

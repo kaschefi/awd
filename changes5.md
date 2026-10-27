@@ -9,7 +9,7 @@
 | 3 | Immutable updates | Strict non-mutating state transitions, immutable bookmark toggle, preventing master array corruption | Ready |
 | 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | Ready |
 | 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | Ready |
-| 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | ☐ |
+| 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | Ready |
 | 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | ☐ |
 | 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | ☐ |
 | 9 | Diagnose & fix common state problems | Audit for duplicated state, stale state, excessive prop drilling, unnecessary global state, and mutations | ☐ |
@@ -609,10 +609,107 @@ If each of the three views maintained its own local `useState<string[]>` for boo
    - A user on `/evidence` bookmarks 3 items. `EvidenceView`'s local state updates to `['EV-101', 'EV-102', 'EV-103']`, and the cards turn yellow.
    - The user clicks "Dashboard". `DashboardView` mounts with its own separate `useState` (initialized to `[]` or whatever was originally in storage). The dashboard metric still displays `0 Bookmarks`.
    - The user clicks "Workspace". `WorkspaceView`'s separate `useState` also has no knowledge of the bookmarks, displaying `"No bookmarked evidence yet"`.
-3. **Storage Clashes & Overwrites:**
-   If each component independently attempted to persist its local state to `localStorage.setItem('remotion_bookmarks', ...)`, they would race against each other. Navigating to an un-synchronized view could trigger a save that completely erases the bookmarks just created by another view.
 4. **Destruction of the Single Source of Truth:**
    Duplicating state across views introduces multiple competing versions of reality, turning what should be a simple shared fact into a synchronization nightmare.
+
+---
+
+## Demo 6 — Passing callbacks downward
+
+### Tasks
+
+#### 1. Passed `onToggleBookmark` Downward Through Props
+From the common state owner `AppContent` in [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx), the state updater callback is threaded down through props to the deep interactive element:
+1. `AppContent` passes `onToggleBookmark={handleToggleBookmark}` to `<EvidenceView />`.
+2. `EvidenceView` passes `onToggleBookmark={onToggleBookmark}` to `<EvidenceList />`.
+3. `EvidenceList` passes `onToggleBookmark={onToggleBookmark}` to each `<EvidenceCard />`.
+4. `EvidenceCard` executes `onToggleBookmark(evidence.id)` upon clicking the button.
+
+At no point does `EvidenceCard` or `EvidenceList` attempt to directly mutate `bookmarks` or access `setBookmarks`. They simply invoke the callback to express user intent.
+
+---
+
+#### 2. Passed Additional Downward Callbacks for Parent-Owned State
+We implemented two additional downward callback interactions:
+
+1. **`onSaveNote` Callback (Threaded Across Route Trees)**:
+   - Defined in `AppContent` ([src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx)):
+     ```tsx
+     const handleSaveNote = (evidenceId: string, noteText: string) => {
+       setNotesStore((prev) => {
+         const next = { ...prev, [evidenceId]: noteText };
+         state.notesStore = next;
+         saveNoteForEvidence(evidenceId, noteText);
+         return next;
+       });
+     };
+     ```
+   - Passed down: `AppContent` $\to$ `EvidenceView` $\to$ `EvidenceDetailModal`.
+   - `EvidenceDetailModal` invokes `onSaveNote(evidence.id, noteText)` when clicking "Save note".
+   - The updated `notesStore` is passed down to `WorkspaceView` $\to$ `NotesList`, ensuring notes saved in the modal are immediately visible in the workspace without page reloads.
+
+2. **`onUpdateStatus` and `onUpdateRelevance` Callbacks**:
+   - Defined in [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx) to manage `evidenceList` state.
+   - Passed down into [src/components/evidence/EvidenceDetailModal.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceDetailModal.tsx).
+   - Invoked when the dropdown value changes, notifying the parent to immutably map the updated item into `evidenceList`.
+
+---
+
+### Questions
+
+#### 1. Why can't (or shouldn't) a deeply nested child component just directly modify state that lives in a distant ancestor? What does passing a callback down get you instead?
+
+##### Why Deeply Nested Children Should Not Directly Mutate Ancestor State
+1. **Violation of Unidirectional Data Flow ($Props \downarrow, Events \uparrow$):**
+   React's predictability and debuggability rely on one-way data flow. If child components could arbitrarily reach up and mutate state in an ancestor component, data mutations would become non-deterministic and bidirectional. Tracking down which component triggered an unexpected state change in a complex tree would become extremely difficult.
+2. **Loss of Invariant Enforcement and Encapsulation:**
+   The component that owns the state (`AppContent`) is responsible for maintaining the state's invariants (e.g. data validation, synchronizing to `localStorage`, coordinating side effects). If a leaf component like `<EvidenceCard>` mutated state directly, it would have to duplicate that storage/validation logic, scattering business rules across the UI tree.
+3. **Loss of Component Reusability & Testability:**
+   A component that directly mutates an ancestor state is tightly coupled to that specific parent's internal architecture. `<EvidenceCard>` could never be reused in a search modal, a timeline tooltip, or an isolated unit test/Storybook without mocking the entire ancestor component tree.
+
+##### What Passing Callbacks Down Gets You Instead
+- **Inversion of Control (IoC):** The child only signals user intent (*"the bookmark button was clicked for EV-101"*). The parent retains complete control over *how* to handle that intent.
+- **Pure, Decoupled Building Blocks:** Child components remain presentational: given props, they render UI; on user interaction, they invoke a prop callback.
+- **Centralized Business Rules:** State updates, storage synchronization, and validation logic remain co-located where the state was declared.
+
+---
+
+#### 2. Trace one callback all the way from where it's defined (with the actual `useState` setter inside it) down to the component that calls it. How many component layers does it pass through, and does that feel like "too many". Is prop drilling becoming a real problem here?
+
+##### Callback Trace for `onToggleBookmark`
+1. **Layer 0 — Origin (`AppContent` in `src/ReactApp.tsx`):**
+   State and callback definition:
+   ```tsx
+   const [bookmarks, setBookmarks] = React.useState<string[]>(...);
+   const handleToggleBookmark = (id: string) => {
+     setBookmarks((prev) => ...);
+   };
+   ```
+2. **Layer 1 — First Intermediate Component (`EvidenceView` in `src/components/evidence/EvidenceView.tsx`):**
+   Receives `onToggleBookmark` as a prop in `EvidenceViewProps`. It does not call the function directly; it forwards it down:
+   ```tsx
+   <EvidenceList ... onToggleBookmark={onToggleBookmark} />
+   ```
+3. **Layer 2 — Second Intermediate Component (`EvidenceList` in `src/components/evidence/EvidenceList.tsx`):**
+   Receives `onToggleBookmark` as a prop in `EvidenceListProps`. It maps over the array and forwards the callback to each card:
+   ```tsx
+   <EvidenceCard ... onToggleBookmark={onToggleBookmark} />
+   ```
+4. **Layer 3 — Target Leaf Component (`EvidenceCard` in `src/components/evidence/EvidenceCard.tsx`):**
+   Receives `onToggleBookmark` as a prop in `EvidenceCardProps`. It binds the callback to the button's synthetic event handler:
+   ```tsx
+   <button onClick={() => onToggleBookmark(evidence.id)}>
+   ```
+
+##### Evaluation: Is Prop Drilling a Problem Here?
+- **Depth:** The callback traverses **3 intermediate component layers**.
+- **Assessment:**
+  - For 2 to 3 layers with a single callback, prop drilling is manageable, transparent, and strictly checked by TypeScript.
+  - However, **it is beginning to introduce clear friction**: `EvidenceList` has zero semantic interest in bookmarks—it is purely a grid layout container for rendering cards. Yet `EvidenceList` must declare `onToggleBookmark` in its interface and pass it through as a passive pipeline.
+  - If we also drilled `onSaveNote`, `onSelectEvidence`, `onUpdateStatus`, and `onUpdateRelevance` through `EvidenceList`, its props interface would become bloated with passthrough plumbing.
+  - Furthermore, passing state across distinct routes (`DashboardView`, `EvidenceView`, `WorkspaceView`) requires threading props through router route elements.
+  - This threshold of boilerplate and component noise is precisely what justifies **React Context (Demo 8)** for cross-cutting global state like bookmarks.
+
 
 
 

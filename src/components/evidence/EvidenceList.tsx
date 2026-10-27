@@ -4,9 +4,9 @@ import { EvidenceCard } from './EvidenceCard.js';
 
 export interface EvidenceListProps {
   evidence: Evidence[];
-  bookmarks: string[];
+  bookmarks?: string[];
   isLoading?: boolean;
-  onToggleBookmark: (id: string) => void;
+  onToggleBookmark?: (id: string) => void;
   onSelectEvidence?: (id: string) => void;
 }
 
@@ -40,7 +40,7 @@ export const EvidenceList: React.FC<EvidenceListProps> = ({
         <EvidenceCard
           key={item.id}
           evidence={item}
-          isBookmarked={bookmarks.indexOf(item.id) !== -1}
+          isBookmarked={bookmarks ? bookmarks.indexOf(item.id) !== -1 : undefined}
           onToggleBookmark={onToggleBookmark}
           onSelectEvidence={onSelectEvidence}
         />

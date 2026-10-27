@@ -10,8 +10,8 @@
 | 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | Ready |
 | 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | Ready |
 | 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | Ready |
-| 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | ☐ |
-| 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | ☐ |
+| 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | Ready |
+| 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | Ready |
 | 9 | Diagnose & fix common state problems | Audit for duplicated state, stale state, excessive prop drilling, unnecessary global state, and mutations | ☐ |
 | 10 | Remove remaining direct DOM manipulation + wrap-up | Elimination of `querySelector`, manual `classList`, and `innerHTML`; end-to-end declarative React app | ☐ |
 
@@ -709,6 +709,331 @@ We implemented two additional downward callback interactions:
   - If we also drilled `onSaveNote`, `onSelectEvidence`, `onUpdateStatus`, and `onUpdateRelevance` through `EvidenceList`, its props interface would become bloated with passthrough plumbing.
   - Furthermore, passing state across distinct routes (`DashboardView`, `EvidenceView`, `WorkspaceView`) requires threading props through router route elements.
   - This threshold of boilerplate and component noise is precisely what justifies **React Context (Demo 8)** for cross-cutting global state like bookmarks.
+
+---
+
+## Demo 7 — `useReducer` for the filter/search/sort state
+
+### Tasks
+
+#### 1. Consolidated 7+ Interrelated Filter States into a Unified Domain
+In [src/reducers/evidenceFilterReducer.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/reducers/evidenceFilterReducer.ts), we identified the 7 separate pieces of toolbar state as a single cohesive state domain and consolidated them:
+```ts
+export type EvidenceSortOrder = 'date-desc' | 'date-asc' | 'title-asc' | 'title-desc';
+
+export interface EvidenceFilterState {
+  searchTerm: string;
+  filterType: string;
+  filterPerson: string;
+  filterLocation: string;
+  filterStatus: string;
+  filterRelevance: string;
+  sortValue: EvidenceSortOrder;
+}
+
+export const initialFilterState: EvidenceFilterState = {
+  searchTerm: '',
+  filterType: '',
+  filterPerson: '',
+  filterLocation: '',
+  filterStatus: '',
+  filterRelevance: '',
+  sortValue: 'date-desc',
+};
+```
+In [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx), we replaced the 7 individual `useState` hooks with a single `useReducer`:
+```tsx
+const [filterState, dispatch] = useReducer(evidenceFilterReducer, initialFilterState);
+```
+
+---
+
+#### 2. Implemented Discrete Action Types
+We defined 4 distinct, strongly typed action types in [src/reducers/evidenceFilterReducer.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/reducers/evidenceFilterReducer.ts):
+```ts
+export type EvidenceFilterAction =
+  | { type: 'SET_SEARCH'; payload: string }
+  | {
+      type: 'SET_FILTER';
+      payload: {
+        filterKey: 'filterType' | 'filterPerson' | 'filterLocation' | 'filterStatus' | 'filterRelevance';
+        value: string;
+      };
+    }
+  | { type: 'SET_SORT'; payload: EvidenceSortOrder }
+  | { type: 'CLEAR_FILTERS' };
+```
+
+And implemented the transition logic inside the pure reducer function:
+```ts
+export function evidenceFilterReducer(
+  state: EvidenceFilterState,
+  action: EvidenceFilterAction
+): EvidenceFilterState {
+  switch (action.type) {
+    case 'SET_SEARCH':
+      return { ...state, searchTerm: action.payload };
+
+    case 'SET_FILTER':
+      return { ...state, [action.payload.filterKey]: action.payload.value };
+
+    case 'SET_SORT':
+      return { ...state, sortValue: action.payload };
+
+    case 'CLEAR_FILTERS':
+      return { ...initialFilterState };
+
+    default:
+      return state;
+  }
+}
+```
+
+In [EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx), all toolbar events dispatch these actions cleanly to update the state.
+
+---
+
+### Questions
+
+#### 1. Why is this particular piece of state ("evidence filters") a better fit for `useReducer` than for a pile of individual `useState` calls? What specifically got easier once you switched?
+
+##### Why Evidence Filters Are a Better Fit for `useReducer`
+1. **Single Cohesive Domain with Interrelated Variables:**
+   The 7 toolbar variables (`searchTerm`, `filterType`, `filterPerson`, `filterLocation`, `filterStatus`, `filterRelevance`, `sortValue`) do not operate independently. They collectively describe a single domain specification: *"the criteria used to filter and sort the Evidence Catalogue"*.
+2. **Coordinated Multi-Field State Transitions:**
+   Resetting filters (`CLEAR_FILTERS`) modifies all 7 fields simultaneously. With `useState`, resetting required 7 sequential setter invocations (`setSearchTerm('')`, `setFilterType('')`, etc.). With `useReducer`, one single action dispatch (`dispatch({ type: 'CLEAR_FILTERS' })`) executes an atomic transition in a single tick.
+3. **Decoupling Business Logic from UI Components:**
+   With individual `useState` calls, state update logic is scattered across inline JSX `onChange` handlers throughout the component. With `useReducer`, the component only expresses *what happened* by dispatching a semantic action (`SET_FILTER`, `SET_SORT`), while the pure reducer function encapsulates *how* state transitions occur.
+4. **Stable Dispatch Identity:**
+   React guarantees that `dispatch` is referentially stable across all renders. It never changes identity, eliminating unnecessary dependencies in `useCallback` or `useEffect`.
+
+##### What Specifically Got Easier
+- **Cleaner `useMemo` Dependencies:** In `EvidenceView.tsx`, the dependency array for `filteredAndSortedEvidence` collapsed from 9 separate variables down to just 3: `[evidenceList, filterState, people]`.
+- **Zero Omission Bugs on Reset:** Adding an 8th filter in the future only requires updating `initialFilterState` and the reducer type; the `CLEAR_FILTERS` button automatically handles the new field without needing code edits.
+- **Testability:** `evidenceFilterReducer` is a pure function that can be unit-tested completely outside the browser DOM and React component lifecycle.
+
+---
+
+#### 2. Show your `CLEAR_FILTERS` action. How does a reducer make "reset several related values at once, consistently" easier to get right than resetting them individually?
+
+##### Implementation of `CLEAR_FILTERS`
+```ts
+case 'CLEAR_FILTERS':
+  // Reset all 7 related fields back to canonical defaults in a single atomic tick
+  return {
+    ...initialFilterState,
+  };
+```
+
+##### Why This Is Easier and Safer Than Individual `useState` Calls
+1. **Canonical Source of Truth for Defaults:**
+   `initialFilterState` is defined once as a constant. When `CLEAR_FILTERS` is dispatched, the reducer returns `{ ...initialFilterState }`. There is zero manual duplication of default strings or default sort orders across event handlers.
+2. **Atomic State Transition:**
+   In `EvidenceView.tsx`, the clear button handler is a single line:
+   ```tsx
+   onClearFilters={() => dispatch({ type: 'CLEAR_FILTERS' })}
+   ```
+   Instead of scheduling 7 separate state updates that React must batch, the reducer computes the next state object in a single function call, guaranteeing atomic state transition without intermediate inconsistent states.
+3. **Prevents Maintenance Drift:**
+   With individual `useState` calls, if a new filter is added (e.g. `filterDateRange`), developers must find every place where filters are cleared and remember to add `setFilterDateRange('')`. If one place is missed, the clear action silently fails to reset that field. With `useReducer`, updating `initialFilterState` guarantees that `CLEAR_FILTERS` resets every field automatically.
+
+---
+
+#### 3. Is `useReducer` fundamentally different from `useState`, or is `useState` essentially a special case of the same underlying idea? Justify your answer.
+
+##### `useState` Is a Special Case of `useReducer`
+`useReducer` and `useState` are **not fundamentally different mechanisms**. Under the hood in React's architecture, `useState` is literally implemented as a `useReducer` with a pre-defined basic reducer.
+
+##### Proof from React's Internal Implementation (`ReactFiberHooks.js`)
+Conceptually, React implements `useState` using the same underlying dispatch queue as `useReducer`:
+```js
+function basicStateReducer(state, action) {
+  return typeof action === 'function' ? action(state) : action;
+}
+
+function useState(initialState) {
+  return useReducer(basicStateReducer, initialState);
+}
+```
+
+##### Architectural Justification
+- **Identical Foundation:** Both hooks store state on the component's internal Fiber node update queue and schedule re-renders using the exact same reconciliation scheduler.
+- **The Generalized State Transition:** Both hooks compute the next state using the mathematical equation:
+  $$\text{nextState} = \text{reducer}(\text{prevState}, \text{action})$$
+- In `useState`, when you call `setSearchTerm('nova')`, you are dispatching an action where the action payload is the value `'nova'`, and React's built-in reducer sets `nextState = 'nova'`. When you call `setSearchTerm(prev => prev + '!')`, the action is an updater function.
+- In `useReducer`, you simply provide your own custom reducer function and your own action object shape (`{ type, payload }`).
+- Therefore, `useReducer` is the foundational primitive of React state management, and `useState` is a convenient specialization for single independent values.
+
+---
+
+## Demo 8 — Context, and when not to use it
+
+### Tasks
+
+#### 1. Implemented Bookmark State via React Context
+We created a dedicated React Context for bookmarks in [src/context/BookmarkContext.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/context/BookmarkContext.tsx):
+```tsx
+export interface BookmarkContextValue {
+  bookmarks: string[];
+  isBookmarked: (id: string) => boolean;
+  toggleBookmark: (id: string) => void;
+}
+
+export const BookmarkContext = createContext<BookmarkContextValue | undefined>(undefined);
+
+export const BookmarkProvider: React.FC<BookmarkProviderProps> = ({
+  children,
+  initialBookmarks,
+}) => {
+  const [bookmarks, setBookmarks] = useState<string[]>(() => {
+    if (initialBookmarks) return initialBookmarks;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed as string[];
+      }
+      return state.bookmarks || [];
+    } catch {
+      return state.bookmarks || [];
+    }
+  });
+
+  const toggleBookmark = useCallback((id: string) => {
+    setBookmarks((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
+      state.bookmarks = next;
+      saveBookmarksToStorage();
+      return next;
+    });
+  }, []);
+
+  const isBookmarked = useCallback(
+    (id: string) => bookmarks.includes(id),
+    [bookmarks]
+  );
+
+  const value = useMemo<BookmarkContextValue>(
+    () => ({
+      bookmarks,
+      isBookmarked,
+      toggleBookmark,
+    }),
+    [bookmarks, isBookmarked, toggleBookmark]
+  );
+
+  return <BookmarkContext.Provider value={value}>{children}</BookmarkContext.Provider>;
+};
+
+export const useBookmarks = (): BookmarkContextValue => {
+  const context = useContext(BookmarkContext);
+  if (!context) {
+    throw new Error('useBookmarks must be used within a BookmarkProvider');
+  }
+  return context;
+};
+```
+
+##### Architectural Integration & Prop-Drilling Elimination
+1. **Tree Root Injection** ([src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx)):
+   `<BookmarkProvider>` wraps `<AppContent />` inside `<HashRouter>`.
+   - Prop drilling through top-level router routes is eliminated:
+     - `<DashboardView />` renders with zero bookmark props.
+     - `<EvidenceView initialSelectedId={selectedEvidenceId} onSaveNote={handleSaveNote} />` renders with zero bookmark props.
+     - `<WorkspaceView notesStore={notesStore} onOpenEvidence={handleOpenEvidence} />` renders with zero bookmark props.
+2. **Intermediate Container Decoupling**:
+   - [EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx) and [EvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceList.tsx) no longer declare or pass intermediate `bookmarks` and `onToggleBookmark` plumbing.
+3. **Direct Leaf Consumption**:
+   - [EvidenceCard.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceCard.tsx) directly consumes `const { isBookmarked, toggleBookmark } = useBookmarks();`.
+   - [DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx) reads bookmarks directly to supply `bookmarkCount={bookmarks.length}` to `StatGrid`.
+   - [BookmarkedEvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/BookmarkedEvidenceList.tsx) consumes `useBookmarks()` to filter and display bookmarked cards.
+
+---
+
+#### 2. Architectural Decision: Context vs. Prop Drilling for this Specific Application
+##### Senior Developer Verdict: Context is the Right Call for Bookmarks in this Architecture
+For *this specific application* at its *current size*, Context is the superior and justified architectural choice specifically for **bookmarks**:
+
+1. **Cross-Route Disjoint Tree Traversal**:
+   Bookmarks are not confined to a single feature tab. They are consumed in three completely disjoint route subtrees:
+   - Route `/dashboard` (metric counter in `StatGrid`),
+   - Route `/evidence` (leaf button toggles in each `EvidenceCard`),
+   - Route `/workspace` (filtered list in `BookmarkedEvidenceList`).
+   With prop drilling, `ReactApp.tsx` had to declare state, pass it into route elements, and force `EvidenceView` and `EvidenceList` to act as pure boilerplate conduits for a feature they had zero semantic use for.
+2. **Low Update Frequency**:
+   Bookmarks are changed infrequently on explicit user clicks (human timescale, not high-frequency keystrokes or mouse move streams). Therefore, React Context's classic downside (re-rendering all subscribers on value change) is completely negligible here.
+3. **Co-location of Invariant Enforcement**:
+   The `BookmarkProvider` encapsulates persistent hydration from `localStorage`, atomic updates to `state.bookmarks`, and serialization via `saveBookmarksToStorage()`, ensuring a single robust boundary instead of leaking storage logic into `AppContent`.
+
+---
+
+### Questions
+
+#### 1. What problem does Context actually solve? What does it *not* solve (people sometimes expect it to behave like global state management. Where does that expectation break down)?
+
+##### What Context Actually Solves: Implicit Dependency Injection & Pipe Bypassing
+React Context is fundamentally a **scoped dependency injection mechanism** for the React component tree.
+- **Solves Prop Drilling:** It allows data and functions to be provided by an ancestor component and consumed by any descendant component without manually passing props through intermediate layers that do not need them.
+- **Decouples Container Components:** Components like `EvidenceList` or page layouts remain generic and focused on structure, without their TypeScript prop signatures being polluted by leaf-component dependencies.
+- **Tree-Scoped Lifetime:** Unlike JavaScript global variables, Context values are scoped to the Provider's subtree in the component hierarchy, allowing multiple instances of a provider with different values (e.g. nested themes or multi-tenant widgets).
+
+##### What Context Does NOT Solve: Where the "Global State Management" Expectation Breaks Down
+Developers often treat Context as a lightweight substitute for state managers like Zustand, Redux, or Jotai. That expectation breaks down across three critical dimensions:
+
+1. **No Granular Subscriptions (Coarse-Grained Re-renders):**
+   When a Context value changes (`Object.is(prevContext, nextContext) === false`), **every single component that calls `useContext(MyContext)` is forced to re-render**, even if the component only cares about a tiny property of that context that remained unchanged.
+   - For example: if a Context holds `{ bookmarks, userSettings, theme }`, updating a bookmark triggers a re-render in every component subscribed to `userSettings` or `theme`.
+   - Context has no built-in selector pattern (`useContextSelector(ctx => ctx.bookmarks.length)` does not exist natively in React).
+2. **Not a State Store or State Machine:**
+   Context holds whatever value you pass to `<MyContext.Provider value={...}>`. It has no built-in mutation reducer, middleware pipeline, devtools time-travel, asynchronous action orchestration, or caching logic. You must construct and manage the state yourself using `useState` or `useReducer`.
+3. **Performance Degrades Under High-Frequency Updates:**
+   If used for high-frequency data (such as keystroke inputs, mouse coordinates, animation clocks, or high-volume WebSockets), Context will bottleneck the React scheduler because it broadcasts updates across the entire subscriber tree without fine-grained diffing.
+
+---
+
+#### 2. Revisit Demo 6's callback-depth question. Was prop drilling there actually a real problem (annoying, error-prone, worth solving) or a manageable one? What's your threshold for reaching for Context instead of just drilling one more level?
+
+##### Reflection on Callback Depth in Demo 6
+In Demo 6, `onToggleBookmark` was drilled through 3 levels:
+$$\text{AppContent} \longrightarrow \text{EvidenceView} \longrightarrow \text{EvidenceList} \longrightarrow \text{EvidenceCard}$$
+- **At 3 layers, was it manageable?**
+  Technically, yes. TypeScript ensured that prop names and types matched, and the code functioned correctly.
+- **Was it becoming a real problem?**
+  Yes, for two specific reasons:
+  1. **Interface Bloat on Pure Layout Containers:** `EvidenceList` had to accept `onToggleBookmark: (id: string) => void` and `bookmarks: string[]`, despite having zero intrinsic need for either. If we later added notes, review status callbacks, and selection handlers, `EvidenceList`'s API surface would balloon into an unmaintainable pass-through pipeline.
+  2. **Disjoint Route Boundaries:** Because the consumer views (`DashboardView`, `EvidenceView`, `WorkspaceView`) are sibling routes rendered conditionally inside React Router's `<Routes>`, passing props required explicit plumbing through the router route element definitions in `ReactApp.tsx`.
+
+##### The Threshold for Reaching for Context
+As a senior architectural guideline, Context should not be used as an immediate reflex whenever a prop is passed to a child. The threshold to adopt Context is met when **at least two of the following conditions hold**:
+1. **Depth $\ge 3$ Layers Across Unrelated Intermediate Components:** When components between the provider and consumer are purely structural/presentational containers that have no domain relationship with the data.
+2. **Cross-Cutting Consumption Across Disjoint Branches:** When 2 or more distinct subtrees or routes (e.g. Dashboard, Evidence, Workspace) require synchronous access to the exact same source of truth.
+3. **Low-to-Medium Change Frequency:** The data changes in response to explicit discrete user actions (e.g. auth session, dark mode, language locale, bookmarks) rather than continuous high-frequency streams.
+4. **When Component Composition Fails to Solve It:** If passing components as `children` (`<Container><Target /></Container>`) cannot eliminate the drilling due to dynamic mapping (like rendering lists of cards).
+
+---
+
+#### 3. "Unnecessary global state" is explicitly named as a common problem. Could using Context here be an example of that, even though Context isn't technically the same as a global variable?
+
+##### Yes, Context Can Easily Become Unnecessary Global State
+Even though React Context is technically scoped to the component tree rather than attached to the global `window` object, placing state in a top-level Context (`<BookmarkProvider>` at the root of `ReactApp`) effectively treats it as **application-wide global state**.
+
+##### Why Context Can Be a Form of "Unnecessary Global State"
+1. **Implicit Global Coupling:**
+   Any component consuming `useBookmarks()` now assumes that a `<BookmarkProvider>` exists somewhere above it in the React tree. If you try to render `<EvidenceCard />` in isolation (in an automated test, a component sandbox, or a preview popover), the component throws an error (`useBookmarks must be used within a BookmarkProvider`) unless wrapped with a mock provider.
+2. **State Scope Smuggling:**
+   Developers frequently reach for root-level Context to avoid thinking about state architecture, dumping local modal states, form drafts, or filter dropdown values into a giant "AppProvider". This turns localized UI concerns into global state, breaking encapsulation.
+3. **Memory & Lifecycle Bloat:**
+   State in a top-level Context remains alive for the entire lifespan of the application session. If the user visits the Evidence view once, bookmarks an item, and spends the next hour in People & Locations, that bookmark state occupies memory at the root level indefinitely.
+
+##### Why Bookmarks Justify Global Scope in This Case
+In our application, bookmark state avoids being "unnecessary" global state because **it is genuinely global to the domain**:
+- The Dashboard displays the bookmark count.
+- The Evidence Catalogue toggles and highlights bookmarks.
+- The Investigator Workspace lists bookmarked evidence and provides navigation links.
+Because the domain fact spans 3 independent top-level views, lifting it to a scoped top-level Context accurately mirrors the business requirements, whereas localizing it would create the desynchronization bug discussed in Demo 5.
+
+
 
 
 

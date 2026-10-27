@@ -1,20 +1,25 @@
 import React from 'react';
 import type { Evidence } from '../../types.js';
 import { formatDate, getStatusBadgeClass, getRelevanceBadgeClass } from '../../formatters.js';
+import { useBookmarks } from '../../context/BookmarkContext.js';
 
 export interface EvidenceCardProps {
   evidence: Evidence;
-  isBookmarked: boolean;
-  onToggleBookmark: (id: string) => void;
+  isBookmarked?: boolean;
+  onToggleBookmark?: (id: string) => void;
   onSelectEvidence?: (id: string) => void;
 }
 
 export const EvidenceCard: React.FC<EvidenceCardProps> = ({
   evidence,
-  isBookmarked,
-  onToggleBookmark,
+  isBookmarked: propIsBookmarked,
+  onToggleBookmark: propToggleBookmark,
   onSelectEvidence,
 }) => {
+  const { isBookmarked: contextIsBookmarked, toggleBookmark: contextToggleBookmark } = useBookmarks();
+  const isBookmarked = propIsBookmarked ?? contextIsBookmarked(evidence.id);
+  const onToggleBookmark = propToggleBookmark ?? contextToggleBookmark;
+
   const handleBookmarkClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     // Stop propagation so clicking bookmark does not trigger onSelectEvidence on the card
     e.stopPropagation();

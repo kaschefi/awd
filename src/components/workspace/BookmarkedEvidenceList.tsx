@@ -1,17 +1,20 @@
 import React from 'react';
 import type { Evidence } from '../../types.js';
+import { useBookmarks } from '../../context/BookmarkContext.js';
 
 export interface BookmarkedEvidenceListProps {
   evidence: Evidence[];
-  bookmarks: string[];
+  bookmarks?: string[];
   onOpenEvidence?: (id: string) => void;
 }
 
 export const BookmarkedEvidenceList: React.FC<BookmarkedEvidenceListProps> = ({
   evidence,
-  bookmarks,
+  bookmarks: propBookmarks,
   onOpenEvidence,
 }) => {
+  const { bookmarks: contextBookmarks } = useBookmarks();
+  const bookmarks = propBookmarks ?? contextBookmarks;
   const bookmarkedItems = evidence.filter((ev) => bookmarks.includes(ev.id));
 
   if (bookmarkedItems.length === 0) {

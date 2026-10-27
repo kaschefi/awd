@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext } from 'react';
 import { usePortalData } from '../../hooks/usePortalData.js';
+import { BookmarkContext } from '../../context/BookmarkContext.js';
 import { CaseSummaryCard } from './CaseSummaryCard.js';
 import { StatGrid } from './StatGrid.js';
 import { ReviewProgress } from './ReviewProgress.js';
@@ -19,7 +20,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const { caseData, evidence, people, locations, timeline, bookmarks: portalBookmarks, isLoading } =
     usePortalData();
-  const bookmarks = propBookmarks ?? portalBookmarks;
+  const bookmarkContext = useContext(BookmarkContext);
+  const bookmarks = propBookmarks ?? bookmarkContext?.bookmarks ?? portalBookmarks;
 
   // Derived values computed synchronously during render:
   // "Don't put in state what you can compute during render."

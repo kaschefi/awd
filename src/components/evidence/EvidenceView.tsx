@@ -1,11 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useReducer, useMemo, useEffect } from 'react';
 import { usePortalData } from '../../hooks/usePortalData.js';
 import { EvidenceToolbar } from './EvidenceToolbar.js';
 import { EvidenceList } from './EvidenceList.js';
 import { EvidenceDetailModal } from './EvidenceDetailModal.js';
 import {
+  evidenceFilterReducer,
+  initialFilterState,
+  type EvidenceSortOrder,
+} from '../../reducers/evidenceFilterReducer.js';
+import {
   state,
-  saveBookmarksToStorage,
   saveNoteForEvidence,
   loadNoteForEvidence,
 } from '../../state.js';
@@ -25,23 +29,15 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   onToggleBookmark: propToggleBookmark,
   onSaveNote: propSaveNote,
 }) => {
-  const { evidence: masterEvidence, people, locations, bookmarks: initialBookmarks, isLoading } =
+  const { evidence: masterEvidence, people, locations, isLoading } =
     usePortalData();
 
   // Local state for Evidence Catalogue
   const [evidenceList, setEvidenceList] = useState<Evidence[]>(masterEvidence);
-  const [localBookmarks, setLocalBookmarks] = useState<string[]>(initialBookmarks);
-  const bookmarks = propBookmarks ?? localBookmarks;
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(initialSelectedId);
 
-  // Filter states
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterPerson, setFilterPerson] = useState('');
-  const [filterLocation, setFilterLocation] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterRelevance, setFilterRelevance] = useState('');
-  const [sortValue, setSortValue] = useState('date-desc');
+  // Demo 7: useReducer consolidating 7+ related filter/search/sort values
+  const [filterState, dispatch] = useReducer(evidenceFilterReducer, initialFilterState);
 
   // Synchronize when data loader finishes
   useEffect(() => {
@@ -49,10 +45,6 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       setEvidenceList(masterEvidence);
     }
   }, [masterEvidence]);
-
-  useEffect(() => {
-    setLocalBookmarks(state.bookmarks);
-  }, [initialBookmarks]);
 
   // Extract unique types for dropdown
   const uniqueTypes = useMemo(() => {
@@ -63,9 +55,9 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
     return Array.from(set).sort();
   }, [masterEvidence]);
 
-  // Derived filtered & sorted evidence
+  // Derived filtered & sorted evidence using reducer filterState
   const filteredAndSortedEvidence = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
+    const term = filterState.searchTerm.toLowerCase().trim();
 
     const matches = evidenceList.filter((item) => {
       if (term) {
@@ -73,25 +65,38 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
         if (haystack.indexOf(term) === -1) return false;
       }
 
-      if (filterType && item.type.toLowerCase() !== filterType.toLowerCase()) return false;
+      if (filterState.filterType && item.type.toLowerCase() !== filterState.filterType.toLowerCase()) {
+        return false;
+      }
 
-      if (filterPerson) {
+      if (filterState.filterPerson) {
         const pIds = item.personIds || [];
-        const person = people.find((p) => p.id === filterPerson);
+        const person = people.find((p) => p.id === filterState.filterPerson);
         const personName = person ? person.name : '';
-        const hasPerson = pIds.includes(filterPerson) || (personName && pIds.includes(personName));
+        const hasPerson =
+          pIds.includes(filterState.filterPerson) ||
+          (personName && pIds.includes(personName));
         if (!hasPerson) return false;
       }
 
-      if (filterLocation && (!item.locationIds || !item.locationIds.includes(filterLocation))) {
+      if (
+        filterState.filterLocation &&
+        (!item.locationIds || !item.locationIds.includes(filterState.filterLocation))
+      ) {
         return false;
       }
 
-      if (filterStatus && (item.status || '').toLowerCase() !== filterStatus.toLowerCase()) {
+      if (
+        filterState.filterStatus &&
+        (item.status || '').toLowerCase() !== filterState.filterStatus.toLowerCase()
+      ) {
         return false;
       }
 
-      if (filterRelevance && (item.relevance || '').toLowerCase() !== filterRelevance.toLowerCase()) {
+      if (
+        filterState.filterRelevance &&
+        (item.relevance || '').toLowerCase() !== filterState.filterRelevance.toLowerCase()
+      ) {
         return false;
       }
 
@@ -100,50 +105,16 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
 
     // Immutable sorting
     return [...matches].sort((a, b) => {
-      if (sortValue === 'title-asc') return a.title.localeCompare(b.title);
-      if (sortValue === 'title-desc') return b.title.localeCompare(a.title);
-      if (sortValue === 'date-asc') {
+      if (filterState.sortValue === 'title-asc') return a.title.localeCompare(b.title);
+      if (filterState.sortValue === 'title-desc') return b.title.localeCompare(a.title);
+      if (filterState.sortValue === 'date-asc') {
         return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
       }
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
-  }, [
-    evidenceList,
-    searchTerm,
-    filterType,
-    filterPerson,
-    filterLocation,
-    filterStatus,
-    filterRelevance,
-    sortValue,
-    people,
-  ]);
+  }, [evidenceList, filterState, people]);
 
   // Event Handlers
-  const handleToggleBookmark = (id: string) => {
-    if (propToggleBookmark) {
-      propToggleBookmark(id);
-    } else {
-      setLocalBookmarks((prev) => {
-        const exists = prev.includes(id);
-        const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
-        state.bookmarks = next;
-        saveBookmarksToStorage();
-        return next;
-      });
-    }
-  };
-
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setFilterType('');
-    setFilterPerson('');
-    setFilterLocation('');
-    setFilterStatus('');
-    setFilterRelevance('');
-    setSortValue('date-desc');
-  };
-
   const handleUpdateStatus = (evidenceId: string, newStatus: EvidenceStatus) => {
     setEvidenceList((prev) =>
       prev.map((ev) => (ev.id === evidenceId ? { ...ev, status: newStatus } : ev))
@@ -179,21 +150,33 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       <h2>Evidence Catalogue</h2>
 
       <EvidenceToolbar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        filterType={filterType}
-        onTypeChange={setFilterType}
-        filterPerson={filterPerson}
-        onPersonChange={setFilterPerson}
-        filterLocation={filterLocation}
-        onLocationChange={setFilterLocation}
-        filterStatus={filterStatus}
-        onStatusChange={setFilterStatus}
-        filterRelevance={filterRelevance}
-        onRelevanceChange={setFilterRelevance}
-        sortValue={sortValue}
-        onSortChange={setSortValue}
-        onClearFilters={handleClearFilters}
+        searchTerm={filterState.searchTerm}
+        onSearchChange={(val) => dispatch({ type: 'SET_SEARCH', payload: val })}
+        filterType={filterState.filterType}
+        onTypeChange={(val) =>
+          dispatch({ type: 'SET_FILTER', payload: { filterKey: 'filterType', value: val } })
+        }
+        filterPerson={filterState.filterPerson}
+        onPersonChange={(val) =>
+          dispatch({ type: 'SET_FILTER', payload: { filterKey: 'filterPerson', value: val } })
+        }
+        filterLocation={filterState.filterLocation}
+        onLocationChange={(val) =>
+          dispatch({ type: 'SET_FILTER', payload: { filterKey: 'filterLocation', value: val } })
+        }
+        filterStatus={filterState.filterStatus}
+        onStatusChange={(val) =>
+          dispatch({ type: 'SET_FILTER', payload: { filterKey: 'filterStatus', value: val } })
+        }
+        filterRelevance={filterState.filterRelevance}
+        onRelevanceChange={(val) =>
+          dispatch({ type: 'SET_FILTER', payload: { filterKey: 'filterRelevance', value: val } })
+        }
+        sortValue={filterState.sortValue}
+        onSortChange={(val) =>
+          dispatch({ type: 'SET_SORT', payload: val as EvidenceSortOrder })
+        }
+        onClearFilters={() => dispatch({ type: 'CLEAR_FILTERS' })}
         types={uniqueTypes}
         people={people}
         locations={locations}
@@ -202,9 +185,9 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       <div id="evidenceListContainer" style={{ marginTop: '1.5rem' }}>
         <EvidenceList
           evidence={filteredAndSortedEvidence}
-          bookmarks={bookmarks}
+          bookmarks={propBookmarks}
           isLoading={isLoading && evidenceList.length === 0}
-          onToggleBookmark={handleToggleBookmark}
+          onToggleBookmark={propToggleBookmark}
           onSelectEvidence={setSelectedEvidenceId}
         />
       </div>

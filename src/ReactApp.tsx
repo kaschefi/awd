@@ -9,30 +9,15 @@ import { TimelineView } from './components/timeline/TimelineView.js';
 
 import { EvidenceView } from './components/evidence/EvidenceView.js';
 import { WorkspaceView } from './components/workspace/WorkspaceView.js';
+import { BookmarkProvider } from './context/BookmarkContext.js';
 import {
   state,
-  STORAGE_KEY_BOOKMARKS,
-  saveBookmarksToStorage,
   STORAGE_KEY_NOTES,
   saveNoteForEvidence,
 } from './state.js';
 
 export const AppContent: React.FC = () => {
   const [selectedEvidenceId, setSelectedEvidenceId] = React.useState<string | null>(null);
-
-  // Demo 5: Lifted bookmark state to Lowest Common Ancestor
-  const [bookmarks, setBookmarks] = React.useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed as string[];
-      }
-      return state.bookmarks;
-    } catch {
-      return state.bookmarks;
-    }
-  });
 
   // Demo 6: Lifted notes state with downward callback
   const [notesStore, setNotesStore] = React.useState<Record<string, string>>(() => {
@@ -43,16 +28,6 @@ export const AppContent: React.FC = () => {
       return state.notesStore;
     }
   });
-
-  const handleToggleBookmark = (id: string) => {
-    setBookmarks((prev) => {
-      const exists = prev.includes(id);
-      const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
-      state.bookmarks = next;
-      saveBookmarksToStorage();
-      return next;
-    });
-  };
 
   const handleSaveNote = (evidenceId: string, noteText: string) => {
     setNotesStore((prev) => {
@@ -85,7 +60,7 @@ export const AppContent: React.FC = () => {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardView bookmarks={bookmarks} />} />
+          <Route path="/dashboard" element={<DashboardView />} />
 
           {/* People & Locations real routes */}
           <Route path="/team" element={<Navigate to="/team/people" replace />} />
@@ -101,14 +76,12 @@ export const AppContent: React.FC = () => {
           {/* Timeline route */}
           <Route path="/timeline" element={<TimelineView />} />
 
-          {/* Migrated Evidence and Workspace Views */}
+          {/* Migrated Evidence and Workspace Views - Demo 8 Context removes prop drilling */}
           <Route
             path="/evidence"
             element={
               <EvidenceView
                 initialSelectedId={selectedEvidenceId}
-                bookmarks={bookmarks}
-                onToggleBookmark={handleToggleBookmark}
                 onSaveNote={handleSaveNote}
               />
             }
@@ -117,7 +90,6 @@ export const AppContent: React.FC = () => {
             path="/workspace"
             element={
               <WorkspaceView
-                bookmarks={bookmarks}
                 notesStore={notesStore}
                 onOpenEvidence={handleOpenEvidence}
               />
@@ -136,7 +108,9 @@ export const AppContent: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <HashRouter basename="/react">
-      <AppContent />
+      <BookmarkProvider>
+        <AppContent />
+      </BookmarkProvider>
     </HashRouter>
   );
 };

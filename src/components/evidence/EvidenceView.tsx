@@ -13,15 +13,23 @@ import type { Evidence, EvidenceStatus, EvidenceRelevance } from '../../types.js
 
 export interface EvidenceViewProps {
   initialSelectedId?: string | null;
+  bookmarks?: string[];
+  onToggleBookmark?: (id: string) => void;
   onNavigateToWorkspace?: () => void;
 }
 
-export const EvidenceView: React.FC<EvidenceViewProps> = ({ initialSelectedId = null }) => {
-  const { evidence: masterEvidence, people, locations, bookmarks: initialBookmarks, isLoading } = usePortalData();
+export const EvidenceView: React.FC<EvidenceViewProps> = ({
+  initialSelectedId = null,
+  bookmarks: propBookmarks,
+  onToggleBookmark: propToggleBookmark,
+}) => {
+  const { evidence: masterEvidence, people, locations, bookmarks: initialBookmarks, isLoading } =
+    usePortalData();
 
   // Local state for Evidence Catalogue
   const [evidenceList, setEvidenceList] = useState<Evidence[]>(masterEvidence);
-  const [bookmarks, setBookmarks] = useState<string[]>(initialBookmarks);
+  const [localBookmarks, setLocalBookmarks] = useState<string[]>(initialBookmarks);
+  const bookmarks = propBookmarks ?? localBookmarks;
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(initialSelectedId);
 
   // Filter states
@@ -41,7 +49,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({ initialSelectedId = 
   }, [masterEvidence]);
 
   useEffect(() => {
-    setBookmarks(state.bookmarks);
+    setLocalBookmarks(state.bookmarks);
   }, [initialBookmarks]);
 
   // Extract unique types for dropdown
@@ -111,14 +119,17 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({ initialSelectedId = 
 
   // Event Handlers
   const handleToggleBookmark = (id: string) => {
-    setBookmarks((prev) => {
-      const exists = prev.includes(id);
-      const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
-      // Keep legacy state and localStorage in sync
-      state.bookmarks = next;
-      saveBookmarksToStorage();
-      return next;
-    });
+    if (propToggleBookmark) {
+      propToggleBookmark(id);
+    } else {
+      setLocalBookmarks((prev) => {
+        const exists = prev.includes(id);
+        const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
+        state.bookmarks = next;
+        saveBookmarksToStorage();
+        return next;
+      });
+    }
   };
 
   const handleClearFilters = () => {

@@ -9,9 +9,34 @@ import { TimelineView } from './components/timeline/TimelineView.js';
 
 import { EvidenceView } from './components/evidence/EvidenceView.js';
 import { WorkspaceView } from './components/workspace/WorkspaceView.js';
+import { state, STORAGE_KEY_BOOKMARKS, saveBookmarksToStorage } from './state.js';
 
 export const AppContent: React.FC = () => {
   const [selectedEvidenceId, setSelectedEvidenceId] = React.useState<string | null>(null);
+
+  // Demo 5: Lifted bookmark state to Lowest Common Ancestor
+  const [bookmarks, setBookmarks] = React.useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed as string[];
+      }
+      return state.bookmarks;
+    } catch {
+      return state.bookmarks;
+    }
+  });
+
+  const handleToggleBookmark = (id: string) => {
+    setBookmarks((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
+      state.bookmarks = next;
+      saveBookmarksToStorage();
+      return next;
+    });
+  };
 
   const handleOpenEvidence = (evidenceId: string) => {
     setSelectedEvidenceId(evidenceId);
@@ -35,7 +60,7 @@ export const AppContent: React.FC = () => {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardView />} />
+          <Route path="/dashboard" element={<DashboardView bookmarks={bookmarks} />} />
 
           {/* People & Locations real routes */}
           <Route path="/team" element={<Navigate to="/team/people" replace />} />
@@ -57,12 +82,19 @@ export const AppContent: React.FC = () => {
             element={
               <EvidenceView
                 initialSelectedId={selectedEvidenceId}
+                bookmarks={bookmarks}
+                onToggleBookmark={handleToggleBookmark}
               />
             }
           />
           <Route
             path="/workspace"
-            element={<WorkspaceView onOpenEvidence={handleOpenEvidence} />}
+            element={
+              <WorkspaceView
+                bookmarks={bookmarks}
+                onOpenEvidence={handleOpenEvidence}
+              />
+            }
           />
 
           {/* Wildcard 404 Catch-All */}

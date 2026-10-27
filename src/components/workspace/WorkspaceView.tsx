@@ -7,12 +7,17 @@ import { HypothesisForm } from './HypothesisForm.js';
 import { state, loadNotesFromStorage } from '../../state.js';
 
 export interface WorkspaceViewProps {
+  bookmarks?: string[];
   onOpenEvidence?: (evidenceId: string) => void;
 }
 
-export const WorkspaceView: React.FC<WorkspaceViewProps> = ({ onOpenEvidence }) => {
+export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
+  bookmarks: propBookmarks,
+  onOpenEvidence,
+}) => {
   const navigate = useNavigate();
-  const { evidence, people, bookmarks } = usePortalData();
+  const { evidence, people, bookmarks: portalBookmarks } = usePortalData();
+  const bookmarks = propBookmarks ?? portalBookmarks;
   const [notes, setNotes] = useState<Record<string, string>>(() => ({ ...state.notesStore }));
 
   useEffect(() => {

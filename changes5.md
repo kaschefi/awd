@@ -8,7 +8,7 @@
 | 2 | `useState` & controlled forms | Controlled search box, controlled hypothesis form (inputs, selects, multi-select, range, textareas), draft persistence | Ready |
 | 3 | Immutable updates | Strict non-mutating state transitions, immutable bookmark toggle, preventing master array corruption | Ready |
 | 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | Ready |
-| 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | ☐ |
+| 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | Ready |
 | 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | ☐ |
 | 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | ☐ |
 | 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | ☐ |
@@ -495,5 +495,124 @@ To determine if any data belongs in `useState`, ask three questions:
 2. **Elimination of the Shared Array Reference Bug:**
    - *How the vanilla bug occurred:* In `src/pages/evidence/script.ts`, `state.filteredEvidence` was a persistent variable on the global store. When no filters were selected, the code assigned `state.filteredEvidence = state.allEvidence`. Because JavaScript passes arrays by reference, `state.filteredEvidence` pointed to the exact same array in heap memory as `state.allEvidence`. Calling `.sort()` on `filteredEvidence` directly mutated the master `allEvidence` array, destroying its original order permanently.
    - *Why deriving in React makes it structurally impossible:* In React, `filteredAndSortedEvidence` is a transient local variable computed inside `useMemo` via `.filter(...)`. By specification (ECMAScript), `Array.prototype.filter()` **always returns a brand-new array instance**, even if every element matches. The subsequent `[...matches].sort(...)` sorts only this freshly allocated projection. The master array in `useState` is never referenced as the filtered array, nor is it ever exposed to sorting. Shared-reference mutation is prevented by construction.
+
+---
+
+## Demo 5 — Lifting state to the nearest common owner
+
+### Tasks
+
+#### 1. Identified Lowest Common Ancestor (LCA) and Lifted `useState` for Bookmarks
+We analyzed every location where bookmark state needs to be read or modified:
+1. **`EvidenceCard`** (under `EvidenceView`): reads bookmark status to style the star icon and triggers toggling on click.
+2. **`StatGrid`** (under `DashboardView`): reads `bookmarks.length` to render the total bookmarked items metric.
+3. **`BookmarkedEvidenceList`** (under `WorkspaceView`): reads `bookmarks` to filter and display the saved evidence items list.
+
+Because `DashboardView`, `EvidenceView`, and `WorkspaceView` sit as sibling routes under React Router's `<Routes>` inside [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx), their **Lowest Common Ancestor is `AppContent`**.
+
+We moved the `useState` for bookmarks out of `EvidenceView` and lifted it into `AppContent`:
+```tsx
+// Inside AppContent in src/ReactApp.tsx:
+const [bookmarks, setBookmarks] = React.useState<string[]>(() => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as string[];
+    }
+    return state.bookmarks;
+  } catch {
+    return state.bookmarks;
+  }
+});
+
+const handleToggleBookmark = (id: string) => {
+  setBookmarks((prev) => {
+    const exists = prev.includes(id);
+    const next = exists ? prev.filter((bId) => bId !== id) : [...prev, id];
+    state.bookmarks = next;
+    saveBookmarksToStorage();
+    return next;
+  });
+};
+```
+
+---
+
+#### 2. Passed Lifted State Down to All Descendant Views
+In [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx), `AppContent` passes `bookmarks` (and the updater callback) down as props:
+```tsx
+{/* Dashboard receives bookmarks prop */}
+<Route path="/dashboard" element={<DashboardView bookmarks={bookmarks} />} />
+
+{/* Evidence receives bookmarks prop and the lifted toggle callback */}
+<Route
+  path="/evidence"
+  element={
+    <EvidenceView
+      initialSelectedId={selectedEvidenceId}
+      bookmarks={bookmarks}
+      onToggleBookmark={handleToggleBookmark}
+    />
+  }
+/>
+
+{/* Workspace receives bookmarks prop */}
+<Route
+  path="/workspace"
+  element={
+    <WorkspaceView
+      bookmarks={bookmarks}
+      onOpenEvidence={handleOpenEvidence}
+    />
+  }
+/>
+```
+
+#### 3. Immediate Reactive Synchronization Confirmed
+When the user clicks the bookmark star on an evidence card in `/evidence`:
+1. `handleToggleBookmark(id)` is invoked at the `AppContent` level.
+2. `AppContent` schedules a re-render with the new `bookmarks` array.
+3. When navigating to `/dashboard`, `DashboardView` immediately displays the new bookmark count.
+4. When navigating to `/workspace`, `BookmarkedEvidenceList` immediately displays the updated items.
+Zero page reloads or DOM queries are needed.
+
+---
+
+### Questions
+
+#### 1. What does "lifting state up" actually mean, mechanically? Walk through where the bookmark state lived before you lifted it, and where it lives now.
+
+##### Mechanical Definition
+"Lifting state up" is the architectural process of removing a `useState` hook from individual descendant components and relocating it to their **lowest common ancestor component (LCA)** in the component tree.
+- The LCA becomes the **single source of truth** for that piece of state.
+- The LCA passes the state down to child components via `props` (for reading).
+- The LCA passes updater callbacks down to child components via `props` (for requesting changes).
+
+##### Walkthrough in Our App
+1. **Where it lived before:**
+   - In vanilla JS, `bookmarks` lived as a mutable array in the global store `src/state.ts` (`state.bookmarks`). Any file could mutate it imperatively, but mutations did not notify other views to re-render.
+   - In our early React draft, `useState` for bookmarks was declared inside `EvidenceView.tsx`. Because `DashboardView` and `WorkspaceView` are sibling route components mounted under `<Routes>`, they were completely cut off from `EvidenceView`'s local state.
+2. **Where it lives now:**
+   - The state now lives in **`AppContent`** in [src/ReactApp.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/ReactApp.tsx), the root shell that renders `<Routes>`, `<DashboardView>`, `<EvidenceView>`, and `<WorkspaceView>`.
+   - `AppContent` owns the reactive `useState<string[]>` and the `handleToggleBookmark` handler.
+   - It distributes `bookmarks` downwards to `DashboardView`, `EvidenceView`, and `WorkspaceView` as typed props.
+
+---
+
+#### 2. What would go wrong (be specific) if you had instead kept a separate `useState` for bookmarks inside each of the Dashboard, Evidence, and Workspace components?
+
+##### The "Split-Brain" Failure Mode
+If each of the three views maintained its own local `useState<string[]>` for bookmarks:
+1. **Isolated Memory Allocations:** Each component would instantiate its own independent state hook. Calling `useState` three times across three different components allocates three completely distinct arrays in memory with no communication channel between them.
+2. **Desynchronized Navigation & Stale UI:**
+   - A user on `/evidence` bookmarks 3 items. `EvidenceView`'s local state updates to `['EV-101', 'EV-102', 'EV-103']`, and the cards turn yellow.
+   - The user clicks "Dashboard". `DashboardView` mounts with its own separate `useState` (initialized to `[]` or whatever was originally in storage). The dashboard metric still displays `0 Bookmarks`.
+   - The user clicks "Workspace". `WorkspaceView`'s separate `useState` also has no knowledge of the bookmarks, displaying `"No bookmarked evidence yet"`.
+3. **Storage Clashes & Overwrites:**
+   If each component independently attempted to persist its local state to `localStorage.setItem('remotion_bookmarks', ...)`, they would race against each other. Navigating to an un-synchronized view could trigger a save that completely erases the bookmarks just created by another view.
+4. **Destruction of the Single Source of Truth:**
+   Duplicating state across views introduces multiple competing versions of reality, turning what should be a simple shared fact into a synchronization nightmare.
+
 
 

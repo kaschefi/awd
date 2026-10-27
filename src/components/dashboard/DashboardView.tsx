@@ -10,10 +10,16 @@ import type { ViewKey } from '../../types/navigation.js';
 
 interface DashboardViewProps {
   onNavigate?: (view: ViewKey) => void;
+  bookmarks?: string[];
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
-  const { caseData, evidence, people, locations, timeline, bookmarks, isLoading } = usePortalData();
+export const DashboardView: React.FC<DashboardViewProps> = ({
+  onNavigate,
+  bookmarks: propBookmarks,
+}) => {
+  const { caseData, evidence, people, locations, timeline, bookmarks: portalBookmarks, isLoading } =
+    usePortalData();
+  const bookmarks = propBookmarks ?? portalBookmarks;
 
   // Derived values computed synchronously during render:
   // "Don't put in state what you can compute during render."

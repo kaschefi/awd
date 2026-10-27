@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalData } from '../../hooks/usePortalData.js';
 import { BookmarkContext } from '../../context/BookmarkContext.js';
 import { BookmarkedEvidenceList } from './BookmarkedEvidenceList.js';
 import { NotesList } from './NotesList.js';
 import { HypothesisForm } from './HypothesisForm.js';
-import { state, loadNotesFromStorage } from '../../state.js';
+import { state } from '../../state.js';
 
 export interface WorkspaceViewProps {
   bookmarks?: string[];
@@ -22,13 +22,8 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   const { evidence, people, bookmarks: portalBookmarks } = usePortalData();
   const bookmarkContext = useContext(BookmarkContext);
   const bookmarks = propBookmarks ?? bookmarkContext?.bookmarks ?? portalBookmarks;
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>(() => ({ ...state.notesStore }));
-  const notes = propNotesStore ?? localNotes;
-
-  useEffect(() => {
-    loadNotesFromStorage();
-    setLocalNotes({ ...state.notesStore });
-  }, []);
+  // Demo 9 fix: Avoid duplicated state by consuming single source of truth directly
+  const notes = propNotesStore ?? state.notesStore;
 
   const handleOpenEvidence = (evidenceId: string) => {
     if (onOpenEvidence) {

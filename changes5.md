@@ -12,7 +12,7 @@
 | 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | Ready |
 | 7 | `useReducer` for filter/search/sort state | Consolidate 7+ interrelated filter controls into a unified state domain with discrete action types | Ready |
 | 8 | Context, and when not to use it | React Context for cross-cutting bookmark state vs. prop-drilling evaluation, global state trade-offs | Ready |
-| 9 | Diagnose & fix common state problems | Audit for duplicated state, stale state, excessive prop drilling, unnecessary global state, and mutations | ☐ |
+| 9 | Diagnose & fix common state problems | Audit for duplicated state, stale state, excessive prop drilling, unnecessary global state, and mutations | Ready |
 | 10 | Remove remaining direct DOM manipulation + wrap-up | Elimination of `querySelector`, manual `classList`, and `innerHTML`; end-to-end declarative React app | ☐ |
 
 ---
@@ -1032,6 +1032,127 @@ In our application, bookmark state avoids being "unnecessary" global state becau
 - The Evidence Catalogue toggles and highlights bookmarks.
 - The Investigator Workspace lists bookmarked evidence and provides navigation links.
 Because the domain fact spans 3 independent top-level views, lifting it to a scoped top-level Context accurately mirrors the business requirements, whereas localizing it would create the desynchronization bug discussed in Demo 5.
+
+---
+
+## Demo 9 — Diagnose & fix common state problems
+
+### Tasks
+
+#### 1. Codebase Audit Across the Five Named State Problem Categories
+We performed a systematic code-review audit across the Evidence Catalogue, Investigator Workspace, and Case Dashboard components specifically evaluating against the five major React anti-patterns:
+1. **Duplicated State** (the same fact represented in two places, risking divergent realities).
+2. **Stale State** (values that do not update when they should due to missed dependencies or decoupled lifecycles).
+3. **Excessive Prop Drilling** (threading state through passive intermediary components).
+4. **Unnecessary Global State** (elevating local UI concerns into top-level stores).
+5. **Direct Mutation** (mutating arrays or objects in-place instead of creating immutable copies).
+
+---
+
+#### 2. Concrete Issues Identified & Fixed
+
+##### Issue 1: Duplicated & Stale Notes State in [WorkspaceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/workspace/WorkspaceView.tsx)
+- **Problem Category:** **Duplicated State** and **Stale State**.
+- **The Defect:**
+  In `WorkspaceView.tsx`, the component accepted `notesStore?: Record<string, string>` as a prop from `AppContent` (which owns the canonical notes state). However, `WorkspaceView` was also initializing its own local state:
+  ```tsx
+  // Redundant local state duplicating parent state
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>(() => ({ ...state.notesStore }));
+  const notes = propNotesStore ?? localNotes;
+
+  useEffect(() => {
+    loadNotesFromStorage();
+    setLocalNotes({ ...state.notesStore });
+  }, []);
+  ```
+  This violated the single-source-of-truth principle by keeping an isolated copy of notes in `localNotes`. If notes were updated in the Evidence view while the Workspace was mounted or unmounted, the `useEffect` would execute asynchronously *after* the initial render, causing unnecessary extra renders, potential flash of stale content, and split-brain state.
+- **The Fix:**
+  Eliminated `localNotes`, `setLocalNotes`, and the redundant `useEffect`. Derived `notes` directly from props, falling back to storage if rendered standalone:
+  ```tsx
+  // Single source of truth: no local state duplication
+  const notes = propNotesStore ?? state.notesStore;
+  ```
+
+---
+
+##### Issue 2: Direct In-Place Object Mutation in [EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx)
+- **Problem Category:** **Direct Mutation**.
+- **The Defect:**
+  In `EvidenceView.tsx`, while `setEvidenceList` properly used `.map()` to update the React component state immutably, the handler functions subsequently performed direct in-place mutation on objects inside the legacy `state.allEvidence` array:
+  ```tsx
+  const handleUpdateStatus = (evidenceId: string, newStatus: EvidenceStatus) => {
+    setEvidenceList((prev) =>
+      prev.map((ev) => (ev.id === evidenceId ? { ...ev, status: newStatus } : ev))
+    );
+    // Direct in-place property mutation on object reference!
+    const item = state.allEvidence.find((ev) => ev.id === evidenceId);
+    if (item) item.status = newStatus;
+  };
+  ```
+  Mutating `item.status` in-place alters the object directly in memory without changing its reference. Any other component, memoized calculation, or hook referencing `state.allEvidence` would fail to register that a mutation occurred because `Object.is(prevItem, nextItem)` remains true. This is the exact pattern that caused the master dataset corruption bug in Exercise 1.
+- **The Fix:**
+  Replaced the in-place property assignment with an immutable array projection via `.map()`, creating a brand-new object reference for the modified evidence item:
+  ```tsx
+  // Non-mutating immutable projection
+  state.allEvidence = state.allEvidence.map((ev) =>
+    ev.id === evidenceId ? { ...ev, status: newStatus } : ev
+  );
+  ```
+  The same fix was applied to `handleUpdateRelevance`.
+
+---
+
+### Questions
+
+#### 1. For each of the 2 issues you fixed: which of the five named categories did it fall into, and how did you notice it (a visible bug, a code-review-style re-read, React DevTools, something else)?
+
+##### Issue 1 (Workspace Notes Duplication)
+- **Category:** **Duplicated State** / **Stale State**.
+- **How It Was Noticed:** Code-review-style re-read during the Demo 8 Context refactor.
+  - While auditing props passed through `ReactApp.tsx`, we noticed `notesStore` was being passed into `<WorkspaceView notesStore={notesStore} />`.
+  - Inspecting `WorkspaceView.tsx` revealed `const [localNotes, setLocalNotes] = useState(...)` alongside `useEffect(() => { loadNotesFromStorage(); ... }, [])`.
+  - Storing props in state (or duplicating parent state into a local hook) is a textbook React smell. If `propNotesStore` was provided, `localNotes` was completely ignored (`propNotesStore ?? localNotes`), yet still initialized and maintained in memory, generating unnecessary re-renders.
+
+##### Issue 2 (Legacy Array Mutation in EvidenceView)
+- **Category:** **Direct Mutation**.
+- **How It Was Noticed:** Code-review-style re-read of event handlers in `EvidenceView.tsx`.
+  - While reviewing `handleUpdateStatus` and `handleUpdateRelevance`, we observed that right after the clean, non-mutating `setEvidenceList(prev => prev.map(...))` call, the code did `const item = state.allEvidence.find(...); item.status = newStatus;`.
+  - Direct assignment to an object property retrieved from a shared array (`item.status = ...`) is an in-place mutation. It bypassed immutability, modifying the shared heap object directly.
+
+---
+
+#### 2. Of the five named problems (duplicated state, stale state, prop drilling, unnecessary global state, mutation), which one is this app's history (Exercise 1's bugs) most clearly an example of? Explain the connection directly.
+
+##### The App's History Is Most Clearly an Example of: Direct Mutation (compounded by Stale State)
+
+In the vanilla architecture of Exercise 1, the single most critical defect category was **direct in-place mutation via shared memory references**.
+
+##### Direct Connection to Exercise 1 Bugs
+1. **The Evidence Sorting Disaster:**
+   In Exercise 1's `src/pages/evidence/script.ts`:
+   ```ts
+   state.filteredEvidence = state.allEvidence;
+   state.filteredEvidence.sort((a, b) => a.title.localeCompare(b.title));
+   ```
+   JavaScript's `Array.prototype.sort()` does not return a new array; it sorts the existing buffer **in place**. Because `state.filteredEvidence` held a reference to `state.allEvidence`, calling `.sort()` directly scrambled the order of `state.allEvidence`. The master chronological dataset was irreversibly mutated and destroyed.
+2. **Bookmark Flag Mutation:**
+   Bookmarking an item in vanilla directly modified properties on shared objects:
+   ```ts
+   evidenceItem.bookmarked = !evidenceItem.bookmarked;
+   ```
+   If that same `evidenceItem` was referenced in the timeline or dashboard, mutating it in-place caused implicit side effects without notifying dependent DOM nodes.
+3. **Stale DOM Elements Caused by Mutation:**
+   Because vanilla JS lacked a reactive change-detection cycle, mutating data in memory did not update the DOM. The Dashboard counter stamped `bookmarks.length` once onto the DOM at boot time. When bookmarks were subsequently mutated in memory, the DOM counter remained stale because no reactive binding existed.
+
+##### Why React Structurally Prevents This Bug Class
+In React, state transitions are enforced to be **pure, immutable functions of previous state**:
+$$\text{UI} = f(\text{State})$$
+When updating an array or object in React:
+- We never mutate references in place. We allocate new shallow copies via `[...array]` or `{ ...object }`.
+- React's reconciliation engine uses shallow reference equality (`Object.is`) to detect when state changes.
+- Because the master dataset is immutable, projecting a sorted or filtered view (`filteredAndSortedEvidence = useMemo(...)`) operates on an isolated projection without ever altering the source data.
+- The defect from Exercise 1 is therefore structurally eliminated by design.
+
 
 
 

@@ -119,17 +119,20 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
     setEvidenceList((prev) =>
       prev.map((ev) => (ev.id === evidenceId ? { ...ev, status: newStatus } : ev))
     );
-    // Also update legacy state item if present
-    const item = state.allEvidence.find((ev) => ev.id === evidenceId);
-    if (item) item.status = newStatus;
+    // Demo 9 fix: Immutably project legacy state instead of direct in-place object mutation
+    state.allEvidence = state.allEvidence.map((ev) =>
+      ev.id === evidenceId ? { ...ev, status: newStatus } : ev
+    );
   };
 
   const handleUpdateRelevance = (evidenceId: string, newRelevance: EvidenceRelevance) => {
     setEvidenceList((prev) =>
       prev.map((ev) => (ev.id === evidenceId ? { ...ev, relevance: newRelevance } : ev))
     );
-    const item = state.allEvidence.find((ev) => ev.id === evidenceId);
-    if (item) item.relevance = newRelevance;
+    // Demo 9 fix: Immutably project legacy state instead of direct in-place object mutation
+    state.allEvidence = state.allEvidence.map((ev) =>
+      ev.id === evidenceId ? { ...ev, relevance: newRelevance } : ev
+    );
   };
 
   const handleSaveNote = (evidenceId: string, noteText: string) => {

@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 1 | Migrate event handling from vanilla listeners | Static React structure for Evidence & Workspace, migrating inline/vanilla event handlers to JSX synthetic events | Ready |
 | 2 | `useState` & controlled forms | Controlled search box, controlled hypothesis form (inputs, selects, multi-select, range, textareas), draft persistence | Ready |
-| 3 | Immutable updates | Strict non-mutating state transitions, immutable bookmark toggle, preventing master array corruption | ☐ |
+| 3 | Immutable updates | Strict non-mutating state transitions, immutable bookmark toggle, preventing master array corruption | Ready |
 | 4 | Derived values vs. stored state | In-render computation of filtered & sorted evidence, dynamic bookmark counters, single source of truth | ☐ |
 | 5 | Lifting state to the nearest common owner | Identify common ancestor component for shared bookmark state across Dashboard, Evidence, and Workspace | ☐ |
 | 6 | Passing callbacks downward | Unidirectional data flow via downward callbacks (`onToggleBookmark`, `onSaveNote`, `onStatusChange`), prop drilling analysis | ☐ |
@@ -272,3 +272,123 @@ A single `useState` object works well when field transitions are simple key-valu
 - Resetting filters requires clearing 7 interdependent fields back to defaults simultaneously (`CLEAR_FILTERS`).
 - Selecting a specific person or location might constrain or invalidate status/type selections.
 - Complex state transitions with business rules are much more safely and cleanly encapsulated in a pure reducer function rather than scattered across component event handlers.
+
+---
+
+## Demo 3 — Immutable updates
+
+### Tasks
+
+#### 1. Rewrote Direct Mutation Anti-Patterns as Immutable Updates
+In the vanilla codebase (`src/pages/evidence/script.ts` and `src/state.ts`), multiple interactions directly mutated state arrays and objects in heap memory:
+- **Vanilla direct mutation instinct:**
+  ```ts
+  // From vanilla script.ts:
+  state.bookmarks.push(evidenceId); // Mutates array directly
+  ev.bookmarked = true;             // Mutates object directly
+  state.filteredEvidence.sort(...); // In-place array mutation
+  ```
+- **Rewritten as strict immutable updates in React:**
+  1. **Evidence Status and Relevance Updates** in [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx):
+     ```tsx
+     const handleUpdateStatus = (evidenceId: string, newStatus: EvidenceStatus) => {
+       setEvidenceList((prev) =>
+         prev.map((ev) => (ev.id === evidenceId ? { ...ev, status: newStatus } : ev))
+       );
+     };
+
+     const handleUpdateRelevance = (evidenceId: string, newRelevance: EvidenceRelevance) => {
+       setEvidenceList((prev) =>
+         prev.map((ev) => (ev.id === evidenceId ? { ...ev, relevance: newRelevance } : ev))
+       );
+     };
+     ```
+     Using `.map()` and object spread `{ ...ev, status: newStatus }` guarantees that the previous `evidenceList` array is not mutated, unmodified items keep their references, and the modified evidence item receives a new object reference.
+
+  2. **Non-mutating Sorting Projection**:
+     Instead of calling `.sort()` on `matches` or `evidenceList` directly, a shallow copy is made first via array spread:
+     ```tsx
+     return [...matches].sort((a, b) => {
+       if (sortValue === 'title-asc') return a.title.localeCompare(b.title);
+       if (sortValue === 'title-desc') return b.title.localeCompare(a.title);
+       if (sortValue === 'date-asc') {
+         return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+       }
+       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+     });
+     ```
+     The master collection in state remains in its original chronological/insertion order.
+
+---
+
+#### 2. Immutable Bookmark Toggle Logic
+In [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx), toggling a bookmark specifically exercises immutable array creation:
+```tsx
+const handleToggleBookmark = (id: string) => {
+  setBookmarks((prev) => {
+    const exists = prev.includes(id);
+    return exists
+      ? prev.filter((bId) => bId !== id) // Returns a brand-new array without the ID
+      : [...prev, id];                  // Returns a brand-new array with the ID appended
+  });
+};
+```
+- When un-bookmarking, `prev.filter(...)` returns a **new array reference**.
+- When bookmarking, `[...prev, id]` returns a **new array reference**.
+- The `evidence` items themselves are **never mutated** with `ev.bookmarked = true/false`. Instead, bookmark status is derived purely via `bookmarks.includes(item.id)`.
+
+---
+
+### Questions
+
+#### 1. Why does mutating state directly in React sometimes still appear to "work" on screen, but cause real (possibly hard-to-track) bugs elsewhere? What is React actually comparing when it decides whether to re-render?
+
+##### What React Actually Compares: Shallow Reference Equality
+When deciding whether to schedule a re-render or bail out, React compares the previous state and the next state using **shallow reference equality** (`Object.is(prevState, nextState)`).
+- For primitive values (numbers, booleans, strings), `Object.is` compares values.
+- For reference types (arrays and objects), `Object.is` compares **memory addresses**, not the deep contents or properties.
+
+If you mutate an array in place:
+```ts
+bookmarks.push(newId);
+setBookmarks(bookmarks); // Passing the EXACT SAME memory reference!
+```
+React evaluates `Object.is(bookmarks, bookmarks)`, which is `true`. React assumes **nothing has changed** and completely bails out of re-rendering that component!
+
+##### Why Direct Mutation Sometimes Appears to "Work"
+Direct mutation can create deceptive, phantom updates:
+1. **Collateral Re-renders:** If another completely unrelated state change occurs (e.g. typing in a search box, a parent component re-rendering, a route change, or a background timer), React re-executes the component's render function. During that render pass, JSX reads the mutated object from memory and displays the updated data. The developer falsely assumes their mutation worked, unaware that the UI update was purely accidental.
+2. **Child Components Skip Updates (`React.memo`):** If a child component takes the array as a prop and uses `React.memo`, it compares `prevProps.bookmarks === nextProps.bookmarks`. Since the reference didn't change, the child skips re-rendering and remains permanently stale.
+3. **Broken Dependency Arrays (`useMemo` and `useEffect`):** Any hook that lists `[bookmarks]` in its dependency array will fail to detect the change, causing cached calculations and side-effects to go out of sync.
+
+---
+
+#### 2. The original vanilla app had a real bug where sorting evidence mutated the master array via a shared reference, permanently losing the original order. Show how your React state update for the equivalent action (bookmark toggle, or sort, if you implement it) avoids that exact class of bug. Be specific about what's different, not just "React handles it."
+
+##### The Vanilla Bug from Exercise 1
+In the vanilla implementation (`src/pages/evidence/script.ts`):
+```ts
+state.filteredEvidence = state.allEvidence;
+...
+state.filteredEvidence.sort((a, b) => a.title.localeCompare(b.title));
+```
+JavaScript's `Array.prototype.sort()` sorts the array **in place** (it rearranges items directly within the existing memory buffer).
+Because `state.filteredEvidence` was assigned the reference to `state.allEvidence` (`filteredEvidence === allEvidence`), calling `.sort()` directly mutated `state.allEvidence`.
+The original insertion order of the master dataset was permanently lost. When the user cleared filters or changed sort dropdowns, the original order could never be recovered.
+
+##### What Is Structurally Different in Our React Implementation
+1. **Master State Is Immutable:**
+   The master dataset is stored in React state:
+   ```tsx
+   const [evidenceList, setEvidenceList] = useState<Evidence[]>(masterEvidence);
+   ```
+   We never assign this array reference to a shared mutable pointer.
+2. **Explicit Memory Copy Before Sorting:**
+   When computing the sorted view:
+   ```tsx
+   return [...matches].sort((a, b) => ...);
+   ```
+   The spread operator `[...matches]` explicitly allocates a **brand-new array instance in memory**. Calling `.sort()` only mutates this temporary, local array projection. The underlying `evidenceList` array stored in React state is never touched.
+3. **No Flag Mutation on Objects:**
+   In vanilla, bookmarking did `ev.bookmarked = true`. If `ev` was shared across views, mutating that property could conflict with other views. In our React implementation, `evidence` objects are read-only; bookmark status is derived purely from the immutable `bookmarks: string[]` array.
+

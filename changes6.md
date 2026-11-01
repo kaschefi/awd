@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 1 | Render logic vs. effects | Pure render calculations vs. external side effects, StrictMode double-rendering analysis, derived state boundaries | Ready |
 | 2 | `useEffect` mental model & dependency arrays | Dependency array comparison semantics (`Object.is`), omit hazards, synchronizing document title | Ready |
-| 3 | Cleanup: timers & subscriptions | Effect teardown lifecycle, unmount vs. re-run triggers, avoiding duplicate listeners and timer leaks | Pending |
+| 3 | Cleanup: timers & subscriptions | Effect teardown lifecycle, unmount vs. re-run triggers, avoiding duplicate listeners and timer leaks | Ready |
 | 4 | Build the read-only Node backend | Express read-only REST API for case resources, artificial delay and error simulation headers/params | Pending |
 | 5 | Consume the backend from React | Replacing static JSON imports with network `fetch()` inside `useEffect`, component state transitions | Pending |
 | 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Pending |
@@ -262,5 +262,143 @@ There are three fundamental differences:
    - In development under `<React.StrictMode>`, React mounts, unmounts, and re-mounts components to verify lifecycle integrity.
    - If `fn()` is in the body, it runs synchronously during both invocations with no cleanup mechanism.
    - With `useEffect(fn, [])`, React pairs the first execution with its returned cleanup function before running it again, guaranteeing that any subscriptions, timers, or connections created by `fn()` are cleanly torn down before being re-established.
+
+---
+
+## Demo 3 — Cleanup: timers & subscriptions
+
+### Tasks
+
+#### 1. Effects Requiring Cleanup Implemented in Code
+
+When an effect creates a persistent resource (a window event listener, an interval/timer, a WebSocket, or an external event emitter), that resource lives independently of React's render tree. If the component unmounts or its dependencies change, the resource will leak and continue running unless explicitly destroyed.
+
+React solves this by allowing an effect to return a **cleanup function**:
+```tsx
+useEffect(() => {
+  // 1. Setup phase: allocate or subscribe
+  const handleEvent = () => { ... };
+  window.addEventListener('event', handleEvent);
+
+  // 2. Cleanup phase: tear down or unsubscribe
+  return () => {
+    window.removeEventListener('event', handleEvent);
+  };
+}, [dependency]);
+```
+
+In our application, we implemented two distinct cleanup mechanisms inside [src/components/evidence/EvidenceDetailModal.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceDetailModal.tsx):
+
+##### Implementation A: Global Keyboard Listener (Escape Key Dismissal)
+```tsx
+// Effect with DOM subscription & explicit cleanup
+useEffect(() => {
+  if (!evidence) return;
+
+  console.log(`[Demo 3 Effect] Setting up Escape key listener for modal (${evidence.id})`);
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      console.log(`[Demo 3 Effect] Escape key detected — closing modal for ${evidence.id}`);
+      onClose();
+    }
+  };
+
+  window.addEventListener('keydown', handleKeyDown);
+
+  return () => {
+    console.log(`[Demo 3 Cleanup] Cleaning up Escape key listener for modal (${evidence.id})`);
+    window.removeEventListener('keydown', handleKeyDown);
+  };
+}, [evidence, onClose]);
+```
+
+##### Implementation B: Auto-Dismiss Notification Timer
+```tsx
+// Effect with timer & explicit cleanup
+useEffect(() => {
+  if (!showSavedMsg) return;
+
+  console.log('[Demo 3 Effect] Starting 2000ms auto-dismiss timer');
+  const timer = setTimeout(() => {
+    console.log('[Demo 3 Effect] Auto-dismissing save toast');
+    setShowSavedMsg(false);
+  }, 2000);
+
+  return () => {
+    console.log('[Demo 3 Cleanup] Clearing auto-dismiss timer on unmount / re-trigger');
+    clearTimeout(timer);
+  };
+}, [showSavedMsg]);
+```
+
+---
+
+#### 2. Demonstration: With vs. Without Cleanup Function
+
+##### Scenario 1: With Proper Cleanup (Observed Console Output)
+When the user inspects evidence item `E01`, then switches to inspect `E02`, and then closes the modal:
+1. Modal opens for `E01`:
+   - `[Demo 3 Effect] Setting up Escape key listener for modal (E01)`
+2. User switches to inspect `E02` (dependency `evidence` changes):
+   - `[Demo 3 Cleanup] Cleaning up Escape key listener for modal (E01)` *(React cleans up the old effect first!)*
+   - `[Demo 3 Effect] Setting up Escape key listener for modal (E02)`
+3. User presses `Escape` or closes the modal (component unmounts):
+   - `[Demo 3 Cleanup] Cleaning up Escape key listener for modal (E02)`
+   - Window listener is completely deregistered; zero dangling listeners remain on `window`.
+
+##### Scenario 2: Without Cleanup (`return () => ...` removed)
+If `window.removeEventListener` is omitted:
+1. Modal opens for `E01`:
+   - Listener 1 attached to `window`.
+2. User inspects `E02`:
+   - Listener 2 attached to `window`. (Listener 1 is still active!).
+3. User inspects `E03`:
+   - Listener 3 attached to `window`.
+4. User closes modal:
+   - Component unmounts, but all 3 listeners remain permanently attached to `window`.
+5. User presses `Escape` in another view:
+   - All 3 listeners fire simultaneously. Each calls `onClose()` through obsolete closures capturing destroyed component scopes.
+
+---
+
+### Questions & Answers
+
+#### Q1: What actually calls your cleanup function, and when? Name at least two distinct situations that trigger it.
+
+**Answer:**
+**What calls the cleanup function:**
+React's runtime scheduler invokes your cleanup function. You never call it manually.
+
+**The Two Distinct Situations That Trigger It:**
+1. **Component Unmounting:**
+   When a component is removed from the DOM tree (e.g., closing the modal, navigating to another route via React Router, or conditional rendering `false && <Modal />`), React executes the cleanup function of every active effect to release resources before the fiber node is unmounted.
+2. **Before Re-running the Effect on Dependency Change:**
+   Whenever the component re-renders and **at least one value in the dependency array has changed** (via `Object.is`), React does **not** simply run the new effect over the old one. Instead, React executes the cleanup function from the *previous* render first (using the old values captured in the previous closure) to disconnect the stale subscription, and only then executes the new effect setup with the fresh values.
+
+*(Bonus situation in React StrictMode development: React intentionally runs `setup -> cleanup -> setup` on initial mount to immediately prove that the cleanup function correctly neutralizes everything created during setup).*
+
+---
+
+#### Q2: What real, observable bug would you get in this app if you set up a subscription/timer in an effect but forgot the cleanup function? Be specific, not just "a memory leak."
+
+**Answer:**
+Beyond vague memory leaks, omitting cleanup causes three real, severe observable bugs:
+
+1. **Multiplied Event Handlers & Cascading Calls:**
+   - In our modal, if `window.removeEventListener('keydown', ...)` is omitted, every time the user opens an evidence card, an additional listener is registered on `window`.
+   - After inspecting 5 evidence items, there are 5 active listeners.
+   - Pressing `Escape` fires `onClose()` 5 times. If `onClose` triggers analytics logging, modal closing animations, or navigation, those operations run 5 redundant times in a row.
+
+2. **Zombie Timer State Updates on Unmounted Components:**
+   - In our save toast timer, if `clearTimeout(timer)` is omitted and the user clicks "Save Note" followed immediately by closing the modal within 2 seconds:
+   - The unmounted modal component is destroyed from the DOM.
+   - However, the browser's background timer queue still holds the callback. After 2000ms, the callback fires and attempts to execute `setShowSavedMsg(false)`.
+   - In React, this results in the classic warning: *"Can't perform a React state update on an unmounted component. This is a no-op, but it indicates a memory leak in your application."* In older React or complex state stores, this can crash the app or overwrite valid state.
+
+3. **Stale Closure Corruption:**
+   - The uncleaned event listener on `window` retains references to the variables of the render that created it (e.g. `evidence.id === 'E01'`).
+   - Even if the modal is currently showing `E05`, the zombie listener for `E01` remains alive. If a key listener performed an action like "Press 'D' to delete current evidence", pressing 'D' would trigger the zombie listener and delete `E01` instead of `E05`!
+
 
 

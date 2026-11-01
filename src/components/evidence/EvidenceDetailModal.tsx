@@ -32,13 +32,49 @@ export const EvidenceDetailModal: React.FC<EvidenceDetailModalProps> = ({
     setSavedNote(initialNote);
   }, [initialNote, evidence?.id]);
 
+  // Demo 3: Window event listener with cleanup (Escape key to dismiss modal)
+  useEffect(() => {
+    if (!evidence) return;
+
+    console.log(`[Demo 3 Effect] Setting up Escape key listener for modal (${evidence.id})`);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        console.log(`[Demo 3 Effect] Escape key detected — closing modal for ${evidence.id}`);
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      console.log(`[Demo 3 Cleanup] Cleaning up Escape key listener for modal (${evidence.id})`);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [evidence, onClose]);
+
+  // Demo 3: Timer with cleanup (auto-dismiss save notification)
+  useEffect(() => {
+    if (!showSavedMsg) return;
+
+    console.log('[Demo 3 Effect] Starting 2000ms auto-dismiss timer');
+    const timer = setTimeout(() => {
+      console.log('[Demo 3 Effect] Auto-dismissing save toast');
+      setShowSavedMsg(false);
+    }, 2000);
+
+    return () => {
+      console.log('[Demo 3 Cleanup] Clearing auto-dismiss timer on unmount / re-trigger');
+      clearTimeout(timer);
+    };
+  }, [showSavedMsg]);
+
   if (!evidence) return null;
 
   const handleSave = () => {
     onSaveNote?.(evidence.id, noteText);
     setSavedNote(noteText);
     setShowSavedMsg(true);
-    setTimeout(() => setShowSavedMsg(false), 2000);
   };
 
   const personNames = (evidence.personIds || []).map((pId) => {

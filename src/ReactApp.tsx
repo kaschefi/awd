@@ -1,5 +1,5 @@
-import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Header } from './components/common/Header.js';
 import { Footer } from './components/common/Footer.js';
 import { NotFoundView } from './components/common/NotFoundView.js';
@@ -17,10 +17,29 @@ import {
 } from './state.js';
 
 export const AppContent: React.FC = () => {
-  const [selectedEvidenceId, setSelectedEvidenceId] = React.useState<string | null>(null);
+  const location = useLocation();
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+
+  // Demo 2: Real, justified useEffect synchronizing browser document.title with route changes
+  useEffect(() => {
+    const routeTitles: Record<string, string> = {
+      '/dashboard': 'Case Dashboard',
+      '/team/people': 'Personnel Directory',
+      '/team/locations': 'Facility Locations',
+      '/timeline': 'Incident Timeline',
+      '/evidence': 'Evidence Catalogue',
+      '/workspace': 'Investigator Workspace',
+    };
+
+    const matchedKey = Object.keys(routeTitles).find((path) =>
+      location.pathname.startsWith(path)
+    );
+    const title = matchedKey ? routeTitles[matchedKey] : 'Investigation Portal';
+    document.title = `${title} | Project ReMotion`;
+  }, [location.pathname]);
 
   // Demo 6: Lifted notes state with downward callback
-  const [notesStore, setNotesStore] = React.useState<Record<string, string>>(() => {
+  const [notesStore, setNotesStore] = useState<Record<string, string>>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_NOTES);
       return raw ? (JSON.parse(raw) as Record<string, string>) : state.notesStore;

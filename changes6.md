@@ -12,7 +12,7 @@
 | 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Ready |
 | 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Ready |
 | 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Ready |
-| 9 | Separate UI, application logic, and API access | Three-tier architecture: API client, custom hooks, and presentation-only UI components | Pending |
+| 9 | Separate UI, application logic, and API access | Three-tier architecture: API client, custom hooks, and presentation-only UI components | Ready |
 | 10 | Data-flow wrap-up & a written UX decision | End-to-end data pipeline architecture, written loading/error UX critique and trade-offs | Pending |
 
 ---
@@ -1213,6 +1213,123 @@ A custom hook is a JavaScript/TypeScript function that **calls at least one buil
   - `TimelineView` renders an interactive chronological stream with date sorting, type filtering, and evidence links.
   - `PeopleLocationsView` renders two distinct sub-tabs with personal profiles, department tags, and location room capacities.
   The hook manages the **data lifecycle and network state**, but delegates **100% of the UI presentation** to each component.
+
+---
+
+## Demo 9 — Separate UI, application logic, and API access
+
+### Tasks
+
+#### 1. Three-Tier Architectural Separation
+
+We restructured our data fetching architecture into three strictly segregated, loosely coupled layers:
+
+```mermaid
+flowchart TD
+    subgraph Layer3["Layer 3: UI Presentation Components"]
+        DV[DashboardView]
+        EV[EvidenceView]
+        TV[TimelineView]
+        PLV[PeopleLocationsView]
+    end
+
+    subgraph Layer2["Layer 2: Application Logic & Custom Hooks"]
+        UF["useFetch<T>() Hook"]
+        UPD["usePortalData() Hook"]
+    end
+
+    subgraph Layer1["Layer 1: Thin API Access Layer"]
+        CA["caseApi (src/api/caseApi.ts)"]
+    end
+
+    subgraph Backend["External Systems"]
+        EXP["Express REST API (Port 3001)"]
+        FS["Static JSON Fallback"]
+    end
+
+    DV --> UPD
+    EV --> UPD
+    TV --> UF
+    PLV --> UF
+    UPD --> CA
+    UF -.-> EXP
+    CA --> EXP
+    CA -.-> FS
+```
+
+##### 1. Layer 1: Dedicated, Thin API-Access Layer ([src/api/caseApi.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/api/caseApi.ts))
+- **Responsibilities:** Contains raw `fetch()` calls, knows endpoint URLs (`/api/case`, `/api/evidence`, etc.), handles HTTP query string formatting, serializes request/response bodies, catches HTTP error statuses, and handles static fallback URLs for GitHub Pages deployment.
+- **Contract:** Exposes pure async functions returning typed promises (`caseApi.getCase()`, `caseApi.getEvidence()`, etc.).
+- **Zero React Dependency:** Contains zero React hooks, zero component state, and zero JSX.
+
+##### 2. Layer 2: Application Logic & Custom Hooks ([src/hooks/useFetch.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/useFetch.ts) & [src/hooks/usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts))
+- **Responsibilities:** Manages reactive state (`isLoading`, `error`, `data`), mounts effects, coordinates `AbortController` cancellation, ignores stale responses, catches `AbortError`, and provides a `refetch()` trigger.
+- **Contract:** Exposes declarative status objects to UI components.
+- **Zero Visual Presentation:** Contains zero JSX, layout styling, or DOM elements.
+
+##### 3. Layer 3: Presentation-Only UI Components (`src/components/**`)
+- **Responsibilities:** Takes data and status from Layer 2, evaluates conditional branches (loading spinner, error alert, empty box, data grid), handles user interactions (filtering, sorting, modal clicks), and renders accessible JSX.
+- **Contract:** Strictly presentation and user interaction.
+
+---
+
+#### 2. Component Direct `fetch()` Audit
+
+We audited the entire codebase to confirm that **no UI component in `src/components/` makes direct `fetch()` calls**.
+
+##### Verification Command
+```powershell
+Get-ChildItem -Recurse -Filter "*.tsx" src/components | Select-String -SimpleMatch "fetch("
+```
+**Result:** 0 matches found.
+- [DashboardView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/dashboard/DashboardView.tsx): Reads via `usePortalData()`.
+- [EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx): Reads via `usePortalData()` and calls `caseApi.getEvidence()` via API facade.
+- [TimelineView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineView.tsx): Reads via `useFetch<TimelineEvent[]>('/api/timeline')`.
+- [PeopleLocationsView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleLocationsView.tsx): Reads via `useFetch<Person[]>('/api/people')` and `useFetch<Location[]>('/api/locations')`.
+
+---
+
+### Questions & Answers
+
+#### Q1: If your backend's endpoint URLs or response shape changed tomorrow, how many files would you need to touch, and which ones? Would any component need to change?
+
+**Answer:**
+**How many files to touch:**
+Exactly **one file**: the API access module ([src/api/caseApi.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/api/caseApi.ts)) (and if the TypeScript interfaces changed, `src/types.ts`).
+
+**Which ones:**
+Only `src/api/caseApi.ts`.
+
+**Would any component need to change?**
+**No, zero components would need to be modified.**
+The API layer acts as an **Anti-Corruption Layer (ACL)**:
+- **Case A: Endpoint URLs Change:** If `/api/evidence` is renamed to `/api/v2/investigations/records`, we change only the URL string inside `caseApi.getEvidence`. The hooks and components continue calling the same hook and receiving the same state.
+- **Case B: Response Shape Changes:** If the backend switches from a raw array `[...]` to an envelope object `{ status: 'success', total: 16, results: [...] }`, the API layer unwraps the payload before returning:
+  ```typescript
+  getEvidence: async (signal) => {
+    const res = await request<Envelope<Evidence[]>>('/api/v2/investigations/records', ..., signal);
+    return res.results; // Unwrapped into clean Evidence[]
+  }
+  ```
+  Components continue consuming `Evidence[]` without ever knowing the backend wire format changed.
+
+---
+
+#### Q2: What's the argument *against* this separation for a small app like this one? E.g. when would the extra layering be overkill rather than helpful? Do you think it's justified here?
+
+**Answer:**
+**The Argument Against (YAGNI & Cognitive Indirection):**
+1. **Mental Indirection & File Hopping:** For a small application, splitting data retrieval into three files (`src/api/caseApi.ts`, `src/hooks/useFetch.ts`, and `src/components/EvidenceView.tsx`) forces a developer to jump across multiple directories to understand a single data flow.
+2. **Boilerplate & Pass-Through Code:** If an API client merely wraps `fetch(url).then(r => r.json())` without authentication headers, token refresh logic, caching, or data transformations, the API layer is purely passthrough ceremony that adds lines of code without immediate runtime benefit.
+
+**When It Is Overkill:**
+- Throwaway prototypes, single-developer hackathons, simple static marketing pages, or applications with only one or two static GET endpoints that will never change.
+
+**Why It IS Justified in This Application:**
+1. **Shared Multi-View Resources:** The same core entities (people, locations, evidence) are consumed across 5 distinct views (Dashboard, Evidence, Timeline, Team, Workspace). Without centralized API endpoints, endpoint URLs and query parameters would be duplicated across multiple components, risking desynchronization when URLs change.
+2. **Deployment Duality (Dev Server vs. Static GitHub Pages):** Our application has a hard requirement to run against a local Express backend in development (`/api/*`) while seamlessly falling back to static files (`./data/*.json`) when built and deployed to GitHub Pages. Centralizing this environment fallback logic in the API client prevents polluting UI components with network routing conditionals.
+3. **Testability & Mocking:** In automated testing or Storybook, developers can mock `caseApi` with dummy in-memory data without spinning up an HTTP server or mocking global `window.fetch`.
+
 
 
 

@@ -11,7 +11,7 @@
 | 5 | Consume the backend from React | Replacing static JSON imports with network `fetch()` inside `useEffect`, component state transitions | Ready |
 | 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Ready |
 | 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Ready |
-| 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Pending |
+| 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Ready |
 | 9 | Separate UI, application logic, and API access | Three-tier architecture: API client, custom hooks, and presentation-only UI components | Pending |
 | 10 | Data-flow wrap-up & a written UX decision | End-to-end data pipeline architecture, written loading/error UX critique and trade-offs | Pending |
 
@@ -999,6 +999,221 @@ The cleanup function does **not** run separately or in a detached lifecycle: **c
    - Our `catch` block checks `if (err.name === 'AbortError') return;`, gracefully ignoring the cancellation without updating state or displaying false error banners.
 
 Thus, the cleanup function provides the **lifecycle trigger** (when to clean up), while `AbortController` provides the **mechanism** (how the browser cancels the in-flight network bytes).
+
+---
+
+## Demo 8 — Extract a reusable custom hook
+
+### Tasks
+
+#### 1. Extracted Generic Custom Hook: `useFetch<T>`
+
+We extracted the complete data-fetching lifecycle, tri-state tracking (`isLoading`, `error`, `data`), and `AbortController` request cancellation into a reusable generic custom hook located at [src/hooks/useFetch.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/useFetch.ts).
+
+##### Hook Architecture ([src/hooks/useFetch.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/useFetch.ts))
+```typescript
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+export interface UseFetchResult<T> {
+  data: T | null;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+export interface UseFetchOptions<T> {
+  initialData?: T;
+  fallbackUrl?: string;
+  enabled?: boolean;
+}
+
+export function useFetch<T>(
+  url: string,
+  options: UseFetchOptions<T> = {}
+): UseFetchResult<T> {
+  const { initialData = null, fallbackUrl, enabled = true } = options;
+
+  const [data, setData] = useState<T | null>(initialData);
+  const [isLoading, setIsLoading] = useState<boolean>(enabled);
+  const [error, setError] = useState<Error | null>(null);
+  const [refetchIndex, setRefetchIndex] = useState<number>(0);
+
+  const activeControllerRef = useRef<AbortController | null>(null);
+
+  const refetch = useCallback(() => {
+    setRefetchIndex((prev) => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (activeControllerRef.current) {
+      activeControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    activeControllerRef.current = controller;
+
+    let isMounted = true;
+    setIsLoading(true);
+    setError(null);
+
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    const fullUrl = url.includes('?') ? `${url}&${search.replace(/^\?/, '')}` : `${url}${search}`;
+
+    async function executeFetch() {
+      try {
+        const res = await fetch(fullUrl, { signal: controller.signal });
+        if (!res.ok) {
+          let msg = `HTTP ${res.status} ${res.statusText}`;
+          try {
+            const errBody = await res.json();
+            if (errBody && errBody.error) msg = errBody.error;
+          } catch {}
+          throw new Error(msg);
+        }
+
+        const json = (await res.json()) as T;
+        if (isMounted) {
+          setData(json);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+
+        if (fallbackUrl && (!err || !(err as Error).message?.includes('500'))) {
+          try {
+            const fbRes = await fetch(fallbackUrl, { signal: controller.signal });
+            if (fbRes.ok) {
+              const fbJson = (await fbRes.json()) as T;
+              if (isMounted) {
+                setData(fbJson);
+                setError(null);
+                return;
+              }
+            }
+          } catch {}
+        }
+
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (isMounted && !controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    executeFetch();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [url, refetchIndex, enabled, fallbackUrl]);
+
+  return { data, isLoading, error, refetch };
+}
+```
+
+---
+
+#### 2. Reused Across Multiple Views in the Application
+
+We integrated `useFetch<T>` across two primary application views:
+
+##### Usage 1: In Investigation Timeline ([src/components/timeline/TimelineView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineView.tsx))
+```typescript
+// src/components/timeline/TimelineView.tsx
+export const TimelineView: React.FC<TimelineViewProps> = ({ events: propEvents, ... }) => {
+  const portal = usePortalData();
+
+  // Demo 8 Usage 1: Reusable custom hook useFetch<TimelineEvent[]>
+  const {
+    data: fetchedEvents,
+    isLoading: timelineLoading,
+    error: timelineError,
+    refetch: refetchTimeline,
+  } = useFetch<TimelineEvent[]>('/api/timeline', {
+    fallbackUrl: './data/timeline.json',
+  });
+
+  const events = propEvents ?? fetchedEvents ?? portal.timeline;
+  ...
+```
+
+##### Usage 2: In People & Locations ([src/components/people_locations/PeopleLocationsView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleLocationsView.tsx))
+```typescript
+// src/components/people_locations/PeopleLocationsView.tsx
+export const PeopleLocationsView: React.FC<PeopleLocationsViewProps> = ({ ... }) => {
+  const portal = usePortalData();
+
+  // Demo 8 Usage 2: Reusable custom hook useFetch<Person[]> & useFetch<Location[]>
+  const {
+    data: fetchedPeople,
+    isLoading: peopleLoading,
+    error: peopleError,
+    refetch: refetchPeople,
+  } = useFetch<Person[]>('/api/people', { fallbackUrl: './data/people.json' });
+
+  const {
+    data: fetchedLocations,
+    isLoading: locationsLoading,
+    error: locationsError,
+    refetch: refetchLocations,
+  } = useFetch<Location[]>('/api/locations', { fallbackUrl: './data/locations.json' });
+
+  const people = propPeople ?? fetchedPeople ?? portal.people;
+  const locations = propLocations ?? fetchedLocations ?? portal.locations;
+  ...
+```
+
+---
+
+### Questions & Answers
+
+#### Q1: What makes something a legitimate custom hook rather than just a regular helper function? What rule(s) does React enforce about how/where hooks (including your custom one) can be called?
+
+**Answer:**
+**1. What Makes It a Legitimate Custom Hook:**
+A custom hook is a JavaScript/TypeScript function that **calls at least one built-in React hook** (such as `useState`, `useEffect`, `useRef`, `useCallback`, etc.).
+- A regular utility function (e.g. `formatDate(timestamp)` or `fetchJson(url)`) takes inputs and returns a value. It has no access to React's state tree, does not persist state across renders, and cannot react to component mounting/unmounting.
+- A custom hook (e.g. `useFetch<T>(url)`) allows you to extract **stateful logic and lifecycle subscriptions** into a reusable unit. When a component calls `useFetch`, the internal `useState` and `useEffect` calls are bound to that specific component's fiber node in React's memory.
+- React enforces the `use...` naming prefix convention, enabling lint tools (`eslint-plugin-react-hooks`) to inspect and enforce the rules of hooks.
+
+**2. The Rules of Hooks Enforced by React:**
+1. **Only Call Hooks at the Top Level:**
+   Never call hooks inside loops (`for`, `while`), conditions (`if`, `switch`), or nested callbacks. Hooks must be invoked in the exact same sequential order on every render pass. React relies on this fixed call order to match state cells in the internal fiber linked list.
+2. **Only Call Hooks from React Function Components or Custom Hooks:**
+   Never call hooks from standard JavaScript functions, async promises, event listeners outside render, or class components.
+
+---
+
+#### Q2: Show the two places using your hook. What did extracting it save you from duplicating, and is there anything about the two usages that *couldn't* be shared and had to stay specific to each call site?
+
+**Answer:**
+**1. The Two Places Using `useFetch<T>`:**
+- **Place 1:** [src/components/timeline/TimelineView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/timeline/TimelineView.tsx#L23-L33) for timeline events (`useFetch<TimelineEvent[]>('/api/timeline')`).
+- **Place 2:** [src/components/people_locations/PeopleLocationsView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/people_locations/PeopleLocationsView.tsx#L23-L37) for personnel and locations (`useFetch<Person[]>('/api/people')` and `useFetch<Location[]>('/api/locations')`).
+
+**2. What Extracting Saved from Duplicating:**
+- **~30 lines of boilerplate per component:** Setting up individual `useState` calls for `data`, `isLoading`, and `error`.
+- **`AbortController` and Cleanup Plumbing:** Automatically instantiating `new AbortController()`, passing the signal, calling `controller.abort()` in the cleanup return, and catching `AbortError`.
+- **Error Handling & Guaranteed Reset:** The `try...catch...finally` block ensuring `setIsLoading(false)` always executes, preventing hung loading spinners.
+- **Retry Logic:** Provides a ready-to-use `refetch()` callback on every view.
+
+**3. What Could NOT Be Shared (Call-Site Specifics):**
+- **TypeScript Data Model (`<T>`):** `TimelineView` expects `TimelineEvent[]`, whereas `PeopleLocationsView` expects `Person[]` and `Location[]`. The generic parameter `<T>` allows type safety while sharing implementation.
+- **Endpoint URLs & Query Params:** Each call site specifies its own resource target (`/api/timeline` vs `/api/people`).
+- **UI Presentation & Layout:** How data is presented on screen is strictly specific to the view:
+  - `TimelineView` renders an interactive chronological stream with date sorting, type filtering, and evidence links.
+  - `PeopleLocationsView` renders two distinct sub-tabs with personal profiles, department tags, and location room capacities.
+  The hook manages the **data lifecycle and network state**, but delegates **100% of the UI presentation** to each component.
+
 
 
 

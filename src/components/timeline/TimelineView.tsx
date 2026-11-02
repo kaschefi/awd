@@ -4,6 +4,7 @@ import type { TimelineEvent, Person, Location } from '../../types.js';
 import { TimelineList } from './TimelineList.js';
 import { TimelineToolbar } from './TimelineToolbar.js';
 import { usePortalData } from '../../hooks/usePortalData.js';
+import { useFetch } from '../../hooks/useFetch.js';
 
 export interface TimelineViewProps {
   events?: TimelineEvent[];
@@ -21,7 +22,18 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   onViewEvidence,
 }) => {
   const portal = usePortalData();
-  const events = propEvents ?? portal.timeline;
+
+  // Demo 8 Usage 1: Reusable custom hook useFetch<TimelineEvent[]>
+  const {
+    data: fetchedEvents,
+    isLoading: timelineLoading,
+    error: timelineError,
+    refetch: refetchTimeline,
+  } = useFetch<TimelineEvent[]>('/api/timeline', {
+    fallbackUrl: './data/timeline.json',
+  });
+
+  const events = propEvents ?? fetchedEvents ?? portal.timeline;
   const people = propPeople ?? portal.people;
   const locations = propLocations ?? portal.locations;
 
@@ -74,7 +86,58 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         eventTypes={eventTypes}
       />
 
-      <TimelineList events={displayedEvents} onViewEvidence={onViewEvidence} />
+      {timelineLoading && events.length === 0 && (
+        <div className="evidence-loading" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+          <div className="spinner" style={{ margin: '0 auto 1rem auto' }}></div>
+          <p style={{ color: 'var(--color-text-muted)' }}>Loading Investigation Timeline…</p>
+        </div>
+      )}
+
+      {timelineError && (
+        <div
+          className="error-state"
+          role="alert"
+          style={{
+            padding: '2rem',
+            textAlign: 'center',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid #ef4444',
+            borderRadius: '8px',
+            margin: '1.5rem 0',
+          }}
+        >
+          <div
+            style={{
+              display: 'inline-block',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              background: 'rgba(239, 68, 68, 0.2)',
+              color: '#ef4444',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              marginBottom: '0.75rem',
+            }}
+          >
+            [HTTP ERROR]
+          </div>
+          <h3 style={{ color: '#ef4444', margin: '0 0 0.5rem 0' }}>Failed to Load Timeline</h3>
+          <p style={{ color: 'var(--color-text-main)', margin: '0 auto 1.25rem auto' }}>
+            {timelineError.message || 'Unable to retrieve timeline events from backend.'}
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={refetchTimeline}
+            style={{ background: '#ef4444', borderColor: '#dc2626', cursor: 'pointer' }}
+          >
+            Retry Request
+          </button>
+        </div>
+      )}
+
+      {(!timelineLoading || events.length > 0) && !timelineError && (
+        <TimelineList events={displayedEvents} onViewEvidence={onViewEvidence} />
+      )}
     </section>
   );
 };

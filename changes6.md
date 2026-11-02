@@ -10,7 +10,7 @@
 | 4 | Build the read-only Node backend | Express read-only REST API for case resources, artificial delay and error simulation headers/params | Ready |
 | 5 | Consume the backend from React | Replacing static JSON imports with network `fetch()` inside `useEffect`, component state transitions | Ready |
 | 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Ready |
-| 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Pending |
+| 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Ready |
 | 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Pending |
 | 9 | Separate UI, application logic, and API access | Three-tier architecture: API client, custom hooks, and presentation-only UI components | Pending |
 | 10 | Data-flow wrap-up & a written UX decision | End-to-end data pipeline architecture, written loading/error UX critique and trade-offs | Pending |
@@ -879,6 +879,127 @@ In our React implementation, two structural features make this mistake virtually
    - The `<Spinner />` JSX branch is not evaluated.
    - React automatically tears down the spinner DOM nodes and mounts the error DOM nodes.
    It is structurally impossible for the spinner to remain mounted when `isLoading` is `false`.
+
+---
+
+## Demo 7 — Request races & cancellation
+
+### Tasks
+
+#### 1. Constructing the Request Race Condition
+
+A **request race condition** occurs when multiple asynchronous network requests are triggered sequentially, but their network responses resolve out-of-order due to variable latency or server processing times.
+
+##### The Out-of-Order Sequence (Without Fix)
+1. **$t = 0\text{ms}$:** The user or app triggers **Request #1** (e.g. search query or slow resource fetch) with an artificial delay of $3000\text{ms}$.
+2. **$t = 400\text{ms}$:** The user immediately triggers **Request #2** (e.g. updated query or fast fetch) with a delay of $0\text{ms}$.
+3. **$t = 420\text{ms}$:** Request #2 finishes fast! The component updates state with Request #2's data (`data_2`). The UI shows the fresh, intended result.
+4. **$t = 3000\text{ms}$:** Request #1 **finally resolves**! Because no cancellation or stale-guard was in place, Request #1's callback executes:
+   ```typescript
+   setEvidenceList(data_1); // ❌ BUG: Overwrites fresh data_2 with stale data_1!
+   ```
+5. **The Visible Failure:** The UI switches back to the old, stale data from Request #1, desynchronizing the screen from user actions.
+
+---
+
+#### 2. The Solution: `AbortController` Integration with Effect Cleanup
+
+We integrated the browser's native `AbortController` API at two strategic layers:
+
+1. **Network Transport Layer ([src/dataLoader.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/dataLoader.ts)):**
+   Updated all fetch utilities to accept an optional `signal?: AbortSignal` and forward it directly to `fetch(url, { signal })`. When aborted, `fetch()` immediately cancels the underlying TCP/HTTP socket and throws a `DOMException` with `name === 'AbortError'`.
+
+2. **React Lifecycle & Cleanup ([src/hooks/usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts)):**
+   ```typescript
+   useEffect(() => {
+     // 1. Allocate an AbortController for this effect's lifetime
+     const controller = new AbortController();
+
+     loadData(controller.signal);
+
+     // 2. React invokes this cleanup function whenever dependencies change or on unmount
+     return () => {
+       console.log('[usePortalData Cleanup] Aborting in-flight fetch via AbortController');
+       controller.abort();
+     };
+   }, [loadData]);
+   ```
+
+3. **Interactive Classroom Sandbox ([src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx)):**
+   We added an interactive, collapsible **"Demo 7: Request Race & Cancellation Sandbox"** panel right inside the Evidence Catalogue:
+   - **Toggle Checkbox:** `[x] Enable AbortController Fix`
+   - **Button 1:** `1. Trigger Slow Request (3000ms)`
+   - **Button 2:** `2. Trigger Fast Request (0ms)`
+   - **Real-Time Event Log:** Displays timestamps showing request dispatches, abort triggers, and resolution events.
+
+---
+
+### Questions & Answers
+
+#### Q1: Reproduce the race live (with artificial delay dialed up) before your fix, then show the fix preventing it. What exact sequence of events causes the stale result to win without the fix?
+
+**Answer:**
+**How to Reproduce Live in Class:**
+1. Open the Evidence Catalogue: [http://localhost:5173/#/react/evidence](http://localhost:5173/#/react/evidence)
+2. Expand the **⚡ Demo 7: Request Race & Cancellation Sandbox** panel.
+
+**Demonstration A: Without Fix (Reproducing the Stale Win):**
+1. Uncheck `[ ] Enable AbortController Fix`.
+2. Click **"1. Trigger Slow Request (3000ms)"**. (Log: `🚀 Sent Slow Request #1 (delay: 3000ms)`).
+3. Immediately click **"2. Trigger Fast Request (0ms)"**. (Log: `🚀 Sent Fast Request #2 (delay: 0ms)`).
+4. Fast Request #2 resolves instantly (Log: `✅ Fast Request #2 RESOLVED! Displaying 16 records`).
+5. Wait 3 seconds:
+   - Suddenly, Slow Request #1 finishes (Log: `✅ Slow Request #1 RESOLVED! Displaying records`).
+   - The UI re-renders and is overwritten by Request #1!
+
+**What exact sequence causes the stale result to win:**
+JavaScript promises resolve asynchronously in the event loop queue. Because HTTP is asynchronous, the execution order of completion callbacks is determined by when the server answers, **not by the order the frontend dispatched them**.
+Since Request #1 was delayed by 3000ms, its `.then()` / `await` continuation was placed on the microtask queue *after* Request #2's continuation had already run. Calling `setEvidenceList()` inside Request #1's callback overwrote the state with the older dataset.
+
+**Demonstration B: With Fix (Showing `AbortController` Prevention):**
+1. Check `[x] Enable AbortController Fix`.
+2. Click **"1. Trigger Slow Request (3000ms)"**.
+3. Immediately click **"2. Trigger Fast Request (0ms)"**.
+4. Log output:
+   - `🛑 Aborting previous request before starting Fast Request #2`
+   - `🚀 Sent Fast Request #2 (delay: 0ms)`
+   - `✅ Fast Request #2 RESOLVED!`
+   - `🛑 Slow Request #1 was aborted (stale response ignored).`
+5. In the browser DevTools **Network tab**, Request #1 is shown in red marked as `(canceled)`.
+6. Stale data never touches React state, and the UI remains clean and consistent.
+
+---
+
+#### Q2: `AbortController` cancels the *request*. Does the effect's cleanup function run separately, or is aborting the fetch itself what you're doing inside the cleanup? Explain how the two connect in your implementation.
+
+**Answer:**
+**The Connection Between `AbortController` and Cleanup:**
+The cleanup function does **not** run separately or in a detached lifecycle: **calling `controller.abort()` IS the core action performed inside the effect's cleanup function.**
+
+**How they connect in our implementation:**
+1. **Instantiation in Effect Scope:**
+   When the effect runs, it allocates `const controller = new AbortController()`.
+   The `controller.signal` is passed into the `fetch()` call.
+   The `controller` instance is captured in the lexical closure of the effect.
+
+2. **The Cleanup Contract:**
+   The effect returns a cleanup callback:
+   ```typescript
+   return () => {
+     controller.abort();
+   };
+   ```
+   React's contract guarantees that before running this effect again (e.g. when dependencies change) OR when the component unmounts from the DOM, React will execute this cleanup function.
+
+3. **The Abort Cascade:**
+   When React calls the cleanup function:
+   - It executes `controller.abort()`.
+   - The browser's network stack receives the abort signal and immediately terminates the in-flight HTTP request.
+   - The pending `fetch()` promise rejects with `DOMException: The user aborted a request (name === 'AbortError')`.
+   - Our `catch` block checks `if (err.name === 'AbortError') return;`, gracefully ignoring the cancellation without updating state or displaying false error banners.
+
+Thus, the cleanup function provides the **lifecycle trigger** (when to clean up), while `AbortController` provides the **mechanism** (how the browser cancels the in-flight network bytes).
+
 
 
 

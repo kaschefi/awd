@@ -1,5 +1,6 @@
-import React, { useState, useReducer, useMemo, useEffect } from 'react';
+import React, { useState, useReducer, useMemo, useEffect, useRef } from 'react';
 import { usePortalData } from '../../hooks/usePortalData.js';
+import { fetchEvidenceData } from '../../dataLoader.js';
 import { EvidenceToolbar } from './EvidenceToolbar.js';
 import { EvidenceList } from './EvidenceList.js';
 import { EvidenceDetailModal } from './EvidenceDetailModal.js';
@@ -45,6 +46,54 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   useEffect(() => {
     setEvidenceList(masterEvidence);
   }, [masterEvidence]);
+
+  // Demo 7: Request Race Condition & AbortController Testing
+  const [showRaceTester, setShowRaceTester] = useState(false);
+  const [useAbortFix, setUseAbortFix] = useState(true);
+  const [raceLog, setRaceLog] = useState<string[]>([]);
+  const activeControllerRef = useRef<AbortController | null>(null);
+
+  const triggerRaceRequest = async (label: string, delayMs: number) => {
+    if (useAbortFix && activeControllerRef.current) {
+      setRaceLog((prev) => [
+        `[${new Date().toLocaleTimeString()}] [ABORT] Canceling previous in-flight request before starting ${label}`,
+        ...prev.slice(0, 7),
+      ]);
+      activeControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    activeControllerRef.current = controller;
+
+    setRaceLog((prev) => [
+      `[${new Date().toLocaleTimeString()}] [FETCH] Dispatched ${label} (delay: ${delayMs}ms)`,
+      ...prev.slice(0, 7),
+    ]);
+
+    try {
+      const data = await fetchEvidenceData(
+        useAbortFix ? controller.signal : undefined,
+        `?delay=${delayMs}`
+      );
+      setEvidenceList(data);
+      setRaceLog((prev) => [
+        `[${new Date().toLocaleTimeString()}] [RESOLVED] ${label} finished. Displaying ${data.length} records.`,
+        ...prev.slice(0, 7),
+      ]);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        setRaceLog((prev) => [
+          `[${new Date().toLocaleTimeString()}] [CANCELED] ${label} was aborted by AbortController (stale response discarded).`,
+          ...prev.slice(0, 7),
+        ]);
+        return;
+      }
+      setRaceLog((prev) => [
+        `[${new Date().toLocaleTimeString()}] [ERROR] ${label} failed: ${(err as Error).message}`,
+        ...prev.slice(0, 7),
+      ]);
+    }
+  };
 
   // Demo 10: Declarative person filter synchronization (eliminates manual DOM manipulation)
   useEffect(() => {
@@ -161,6 +210,110 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   return (
     <section id="view-evidence" className="view active">
       <h2>Evidence Catalogue</h2>
+
+      {/* Demo 7: Interactive Request Race & Cancellation Simulator */}
+      <div
+        style={{
+          margin: '1rem 0 1.5rem 0',
+          padding: '1rem',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4
+            style={{
+              margin: 0,
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span>[Demo 7] Request Race &amp; Cancellation Sandbox</span>
+          </h4>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowRaceTester((prev) => !prev)}
+            style={{ fontSize: '0.8rem', padding: '4px 10px', cursor: 'pointer' }}
+          >
+            {showRaceTester ? 'Hide Sandbox [-]' : 'Open Sandbox [+]'}
+          </button>
+        </div>
+
+        {showRaceTester && (
+          <div style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+            <p style={{ color: 'var(--color-text-muted)', margin: '0 0 0.75rem 0' }}>
+              Demonstrate request races: click <strong>1. Trigger Slow Request (3000ms)</strong>,
+              then immediately click <strong>2. Trigger Fast Request (0ms)</strong>.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                marginBottom: '1rem',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={useAbortFix}
+                  onChange={(e) => setUseAbortFix(e.target.checked)}
+                />
+                Enable AbortController Fix
+              </label>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => triggerRaceRequest('Slow Request #1', 3000)}
+                style={{ fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                1. Trigger Slow Request (3000ms)
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => triggerRaceRequest('Fast Request #2', 0)}
+                style={{ fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                2. Trigger Fast Request (0ms)
+              </button>
+            </div>
+
+            {raceLog.length > 0 && (
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.35)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontFamily: 'monospace',
+                  fontSize: '0.82rem',
+                }}
+              >
+                {raceLog.map((log, idx) => (
+                  <div key={idx} style={{ padding: '2px 0' }}>
+                    {log}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <EvidenceToolbar
         searchTerm={filterState.searchTerm}

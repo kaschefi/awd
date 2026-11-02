@@ -41,65 +41,70 @@ export function usePortalData(): PortalData {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const loadData = useCallback(async (cancelledRef?: { current: boolean }) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log('[usePortalData] Fetching resources from backend /api/* endpoints...');
-      const [caseData, people, locations, timeline, evidence] = await Promise.all([
-        fetchCaseData(),
-        fetchPeopleData(),
-        fetchLocationsData(),
-        fetchTimelineData(),
-        fetchEvidenceData(),
-      ]);
-
-      if (cancelledRef?.current) return;
-
-      // Synchronize shared memory state
-      state.caseData = caseData;
-      state.allPeople = people;
-      state.allLocations = locations;
-      state.allTimeline = timeline;
-      state.allEvidence = evidence;
-      state.filteredEvidence = evidence;
-
-      setData({
-        caseData,
-        people,
-        locations,
-        timeline,
-        evidence,
-        bookmarks: state.bookmarks,
-      });
+    const loadData = useCallback(async (signal?: AbortSignal) => {
+      setIsLoading(true);
       setError(null);
-    } catch (err) {
-      if (cancelledRef?.current) return;
-      console.error('[usePortalData] Network fetch failed:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      if (!cancelledRef?.current) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
 
-  // Demo 5: Data fetching wired inside useEffect
-  useEffect(() => {
-    const cancelledRef = { current: false };
+      try {
+        console.log('[usePortalData] Fetching resources from backend /api/* endpoints...');
+        const [caseData, people, locations, timeline, evidence] = await Promise.all([
+          fetchCaseData(signal),
+          fetchPeopleData(signal),
+          fetchLocationsData(signal),
+          fetchTimelineData(signal),
+          fetchEvidenceData(signal),
+        ]);
 
-    loadData(cancelledRef);
+        if (signal?.aborted) return;
 
-    return () => {
-      cancelledRef.current = true;
+        // Synchronize shared memory state
+        state.caseData = caseData;
+        state.allPeople = people;
+        state.allLocations = locations;
+        state.allTimeline = timeline;
+        state.allEvidence = evidence;
+        state.filteredEvidence = evidence;
+
+        setData({
+          caseData,
+          people,
+          locations,
+          timeline,
+          evidence,
+          bookmarks: state.bookmarks,
+        });
+        setError(null);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log('[usePortalData] Request aborted via AbortController signal');
+          return;
+        }
+        if (signal?.aborted) return;
+        console.error('[usePortalData] Network fetch failed:', err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+          if (!signal?.aborted) {
+            setIsLoading(false);
+          }
+        }
+      }, []);
+
+    // Demo 5 & 7: Data fetching with AbortController wired to cleanup
+    useEffect(() => {
+      const controller = new AbortController();
+
+      loadData(controller.signal);
+
+      return () => {
+        console.log('[usePortalData Cleanup] Aborting in-flight fetch via AbortController');
+        controller.abort();
+      };
+    }, [loadData]);
+
+    return {
+      ...data,
+      isLoading,
+      error,
+      refetch: () => loadData(),
     };
-  }, [loadData]);
-
-  return {
-    ...data,
-    isLoading,
-    error,
-    refetch: loadData,
-  };
-}
+  }

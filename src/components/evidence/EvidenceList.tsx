@@ -60,7 +60,20 @@ export const EvidenceList: React.FC<EvidenceListProps> = ({
           margin: '1rem 0',
         }}
       >
-        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
+        <div
+          style={{
+            display: 'inline-block',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            background: 'rgba(239, 68, 68, 0.2)',
+            color: '#ef4444',
+            fontWeight: 700,
+            fontSize: '0.85rem',
+            marginBottom: '0.75rem',
+          }}
+        >
+          [HTTP ERROR]
+        </div>
         <h3 style={{ color: '#ef4444', margin: '0 0 0.5rem 0' }}>Failed to Load Evidence</h3>
         <p
           style={{
@@ -85,7 +98,7 @@ export const EvidenceList: React.FC<EvidenceListProps> = ({
               cursor: 'pointer',
             }}
           >
-            ↻ Retry Request
+            Retry Request
           </button>
         )}
       </div>
@@ -106,7 +119,20 @@ export const EvidenceList: React.FC<EvidenceListProps> = ({
           borderRadius: '8px',
         }}
       >
-        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
+        <div
+          style={{
+            display: 'inline-block',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            background: 'rgba(255, 255, 255, 0.06)',
+            color: 'var(--color-text-muted)',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            marginBottom: '0.75rem',
+          }}
+        >
+          [EMPTY RESULT]
+        </div>
         <h3 style={{ margin: '0 0 0.5rem 0' }}>No Evidence Records Found</h3>
         <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
           The backend returned zero records or no items match your active filters.

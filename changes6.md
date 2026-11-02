@@ -9,7 +9,7 @@
 | 3 | Cleanup: timers & subscriptions | Effect teardown lifecycle, unmount vs. re-run triggers, avoiding duplicate listeners and timer leaks | Ready |
 | 4 | Build the read-only Node backend | Express read-only REST API for case resources, artificial delay and error simulation headers/params | Ready |
 | 5 | Consume the backend from React | Replacing static JSON imports with network `fetch()` inside `useEffect`, component state transitions | Ready |
-| 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Pending |
+| 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Ready |
 | 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Pending |
 | 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Pending |
 | 9 | Separate UI, application logic, and API access | Three-tier architecture: API client, custom hooks, and presentation-only UI components | Pending |
@@ -735,6 +735,151 @@ Here is the step-by-step lifecycle from mount to screen paint:
    The component must capture HTTP failures (4xx, 5xx) and network dropouts. This allows the UI to render an informative error alert with a "Retry" button instead of crashing the React tree.
 3. **Empty / Nullable Data State (`data: T | null`):**
    The component must accommodate the absence of data prior to fetch completion, and distinguish between "not loaded yet" (`isLoading: true, data: null`) and "loaded successfully, but the database returned zero records" (`isLoading: false, data: []`).
+
+---
+
+## Demo 6 — Loading, error, and empty states
+
+### Tasks
+
+#### 1. Explicit Tri-State UI Implementation
+
+In [src/components/evidence/EvidenceList.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceList.tsx) and [src/components/evidence/EvidenceView.tsx](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/components/evidence/EvidenceView.tsx), we implemented distinct, mutually exclusive visual representations for all three network states:
+
+1. **State 1: Loading Indicator (`isLoading = true`)**
+   - Renders a centered spinning wheel animation with status subtitle.
+   - Prevents layout shift and informs the user that a network fetch to `/api/evidence` is currently active.
+   - Code:
+     ```tsx
+     if (isLoading) {
+       return (
+         <div id="evidenceLoadingIndicator" className="evidence-loading">
+           <div className="spinner"></div>
+           <h3>Loading Evidence Catalogue…</h3>
+           <p>Querying backend REST API (<code>/api/evidence</code>)</p>
+         </div>
+       );
+     }
+     ```
+
+2. **State 2: Explicit Error State (`error !== null`)**
+   - Renders a prominent, high-contrast red warning alert banner (`role="alert"`).
+   - Surfaces the actual server error message (e.g. `Simulated server failure: 500 Internal Server Error`).
+   - Provides an interactive **"↻ Retry Request"** button wired to `refetch()` so the user can recover from network glitches without refreshing the browser tab.
+   - Code:
+     ```tsx
+     if (error) {
+       return (
+         <div id="evidenceErrorState" className="error-state" role="alert">
+           <div className="icon">⚠️</div>
+           <h3>Failed to Load Evidence</h3>
+           <p>{error.message}</p>
+           {onRetry && (
+             <button type="button" className="btn btn-primary" onClick={onRetry}>
+               ↻ Retry Request
+             </button>
+           )}
+         </div>
+       );
+     }
+     ```
+
+3. **State 3: Distinct Empty State (`!isLoading && !error && evidence.length === 0`)**
+   - Renders a clean empty-box illustration (`📭`) with a clear explanatory heading.
+   - Differentiates an empty dataset from a network error or a pending fetch.
+   - Code:
+     ```tsx
+     if (evidence.length === 0) {
+       return (
+         <div id="evidenceEmptyState" className="empty-state">
+           <div className="icon">📭</div>
+           <h3>No Evidence Records Found</h3>
+           <p>The backend returned zero records or no items match your active filters.</p>
+         </div>
+       );
+     }
+     ```
+
+---
+
+#### 2. Visual and Structural Distinction Matrix
+
+| State | Visual Style | Prominent Element | User Action Available | Trigger for Testing |
+|---|---|---|---|---|
+| **Loading** | Neutral dark card, subtle border | Animated CSS Spinner | Wait for network | `http://localhost:5173/?delay=2500#/react/evidence` |
+| **Error** | Red background tint, red border (`#ef4444`) | Warning Icon (`⚠️`) + HTTP Error text | Click "↻ Retry Request" | `http://localhost:5173/?error=500#/react/evidence` |
+| **Empty** | Dashed border card | Empty Box Icon (`📭`) + No Records text | Adjust filters / reset | `http://localhost:5173/?empty=true#/react/evidence` |
+
+---
+
+### Questions & Answers
+
+#### Q1: Trigger your backend's error endpoint live and show the error state appearing. What state variable(s) are you tracking to distinguish "loading," "error," and "loaded successfully but empty" from each other?
+
+**Answer:**
+**How to trigger live in classroom:**
+1. Open the frontend with the error simulation parameter:
+   `http://localhost:5173/?error=500#/react/evidence`
+2. The browser sends the fetch to the backend, which responds with HTTP 500.
+3. The UI immediately renders the red error banner with the message: *"Simulated server failure: 500 Internal Server Error"* and the "↻ Retry Request" button.
+
+**State Variables Tracked:**
+We track three independent reactive state variables inside [src/hooks/usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts):
+1. `isLoading: boolean` — Whether the network request is currently in-flight.
+2. `error: Error | null` — Holds the caught `Error` object if an HTTP 4xx/5xx or network drop occurs; `null` otherwise.
+3. `evidence: Evidence[]` — Holds the parsed JSON array from the response; empty array `[]` initially or when no records exist.
+
+**Truth Table Disambiguating the Three States:**
+- **Loading:** `isLoading === true` $\implies$ Spinner is displayed.
+- **Error:** `isLoading === false && error !== null` $\implies$ Error alert banner is displayed.
+- **Empty:** `isLoading === false && error === null && evidence.length === 0` $\implies$ Empty state box is displayed.
+- **Success:** `isLoading === false && error === null && evidence.length > 0` $\implies$ Full card grid is displayed.
+
+---
+
+#### Q2: The original vanilla app had a bug where a failed fetch could leave a loading spinner stuck forever because the cleanup/hide-loading step was never called on the error path. Explain specifically how your React version's state management makes that particular mistake harder to make (or show that it doesn't, and fix it).
+
+**Answer:**
+**1. How the Bug Existed in Vanilla JavaScript (`src/app.ts`):**
+In the original vanilla app, loading was managed imperatively through manual DOM class mutations and a shared counter:
+```javascript
+// Vanilla app.ts:
+state.loadingStepsRemaining = 2;
+showLoadingOverlay('Loading case file…'); // Adds 'hidden' class removal on DOM element
+
+loadEvidenceData(); // Asynchronous fetch
+```
+- In `loadEvidenceData()`, when the fetch rejected with an error, the `.catch()` block displayed an `alert()`, but **forgot to call `hideLoadingStep()`**!
+- Because DOM updates were imperative mutations scattered across callbacks, failing to decrement the counter and remove the overlay in the error path meant the global `#loadingOverlay` element remained visible in the DOM forever.
+- The user was permanently locked behind a spinner with no way to use the application.
+
+**2. How Declarative React Eliminates This Bug:**
+In our React implementation, two structural features make this mistake virtually impossible:
+
+1. **Guaranteed Execution via `try...catch...finally`:**
+   In [src/hooks/usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts), the reset of `isLoading` is placed inside the `finally` block:
+   ```typescript
+   try {
+     const data = await Promise.all([...]);
+     setData(data);
+   } catch (err) {
+     setError(err);
+   } finally {
+     setIsLoading(false); // GUARANTEED to execute on success AND error
+   }
+   ```
+   Even if the network crashes, a JSON syntax error occurs, or a 500 error is thrown, the JavaScript runtime guarantees that `finally` executes, setting `isLoading(false)`.
+
+2. **Declarative Virtual DOM (Single Source of Truth):**
+   In React, we do **not** manually find a DOM spinner and add/remove CSS classes. Instead, UI is a pure projection:
+   $$\text{UI} = f(\text{isLoading}, \text{error}, \text{data})$$
+   When `error` is set and `isLoading` becomes `false`:
+   - React re-evaluates `EvidenceList`.
+   - The conditional `if (error)` branch executes and returns `<ErrorState />`.
+   - The `<Spinner />` JSX branch is not evaluated.
+   - React automatically tears down the spinner DOM nodes and mounts the error DOM nodes.
+   It is structurally impossible for the spinner to remain mounted when `isLoading` is `false`.
+
 
 
 

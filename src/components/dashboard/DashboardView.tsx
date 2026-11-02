@@ -18,8 +18,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigate,
   bookmarks: propBookmarks,
 }) => {
-  const { caseData, evidence, people, locations, timeline, bookmarks: portalBookmarks, isLoading } =
-    usePortalData();
+  const {
+    caseData,
+    evidence,
+    people,
+    locations,
+    timeline,
+    bookmarks: portalBookmarks,
+    isLoading,
+    error,
+    refetch,
+  } = usePortalData();
   const bookmarkContext = useContext(BookmarkContext);
   const bookmarks = propBookmarks ?? bookmarkContext?.bookmarks ?? portalBookmarks;
 
@@ -38,6 +47,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="evidence-loading" style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div className="spinner" style={{ margin: '0 auto 1rem auto' }} />
         <p style={{ color: 'var(--color-text-muted)' }}>Loading Case Dashboard data&hellip;</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        className="error-state"
+        role="alert"
+        style={{
+          padding: '2.5rem 1.5rem',
+          textAlign: 'center',
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid #ef4444',
+          borderRadius: '8px',
+          margin: '2rem auto',
+          maxWidth: '600px',
+        }}
+      >
+        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
+        <h3 style={{ color: '#ef4444', margin: '0 0 0.5rem 0' }}>Failed to Load Dashboard</h3>
+        <p style={{ color: 'var(--color-text-main)', margin: '0 auto 1.25rem auto' }}>
+          {error.message || 'Unable to connect to case investigation backend.'}
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={refetch}
+          style={{ background: '#ef4444', borderColor: '#dc2626', cursor: 'pointer' }}
+        >
+          ↻ Retry Request
+        </button>
       </div>
     );
   }

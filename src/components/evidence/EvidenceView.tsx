@@ -31,7 +31,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   onToggleBookmark: propToggleBookmark,
   onSaveNote: propSaveNote,
 }) => {
-  const { evidence: masterEvidence, people, locations, isLoading } =
+  const { evidence: masterEvidence, people, locations, isLoading, error, refetch } =
     usePortalData();
 
   // Local state for Evidence Catalogue
@@ -200,6 +200,8 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
           evidence={filteredAndSortedEvidence}
           bookmarks={propBookmarks}
           isLoading={isLoading && evidenceList.length === 0}
+          error={error}
+          onRetry={refetch}
           onToggleBookmark={propToggleBookmark}
           onSelectEvidence={setSelectedEvidenceId}
         />

@@ -13,7 +13,7 @@
 | 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Ready |
 | 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Ready |
 | 9 | Separate UI, application logic, and API access | Three-tier architecture: API client, custom hooks, and presentation-only UI components | Ready |
-| 10 | Data-flow wrap-up & a written UX decision | End-to-end data pipeline architecture, written loading/error UX critique and trade-offs | Pending |
+| 10 | Data-flow wrap-up & a written UX decision | End-to-end data pipeline architecture, written loading/error UX critique and trade-offs | Ready |
 
 ---
 
@@ -1329,6 +1329,131 @@ The API layer acts as an **Anti-Corruption Layer (ACL)**:
 1. **Shared Multi-View Resources:** The same core entities (people, locations, evidence) are consumed across 5 distinct views (Dashboard, Evidence, Timeline, Team, Workspace). Without centralized API endpoints, endpoint URLs and query parameters would be duplicated across multiple components, risking desynchronization when URLs change.
 2. **Deployment Duality (Dev Server vs. Static GitHub Pages):** Our application has a hard requirement to run against a local Express backend in development (`/api/*`) while seamlessly falling back to static files (`./data/*.json`) when built and deployed to GitHub Pages. Centralizing this environment fallback logic in the API client prevents polluting UI components with network routing conditionals.
 3. **Testability & Mocking:** In automated testing or Storybook, developers can mock `caseApi` with dummy in-memory data without spinning up an HTTP server or mocking global `window.fetch`.
+
+---
+
+## Demo 10 — Data-flow wrap-up & a written UX decision
+
+### Tasks
+
+#### 1. End-to-End Data Pipeline Illustration
+
+To illustrate the complete data flow, consider an individual evidence item, such as record **`E01` (Motor Controller Telemetry Log)**:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant BrowserDOM as Browser DOM & Screen
+    participant EvidenceView as EvidenceView Component
+    participant Hook as usePortalData() / useFetch()
+    participant ApiClient as caseApi (API Layer)
+    participant ViteProxy as Vite Reverse Proxy (:5173)
+    participant Express as Express Server (:3001)
+    participant Disk as public/data/evidence.json
+
+    User->>BrowserDOM: Navigates to #/evidence
+    BrowserDOM->>EvidenceView: Mounts component
+    EvidenceView->>Hook: usePortalData() initializes (isLoading = true)
+    EvidenceView->>BrowserDOM: Paints initial loading spinner frame
+
+    Hook->>ApiClient: caseApi.getEvidence(signal)
+    ApiClient->>ViteProxy: fetch('/api/evidence', { signal })
+    ViteProxy->>Express: Proxies HTTP GET /api/evidence
+    Express->>Disk: fs.readFile('evidence.json')
+    Disk-->>Express: Returns raw JSON buffer
+    Express-->>ViteProxy: HTTP 200 OK (Content-Type: application/json)
+    ViteProxy-->>ApiClient: Delivers JSON payload
+    ApiClient-->>Hook: Resolves Promise<Evidence[]>
+
+    Note over Hook: State Dispatch (in finally block)
+    Hook->>Hook: setData(evidenceList), setIsLoading(false)
+    Hook-->>EvidenceView: Triggers component re-render with fresh data
+
+    Note over EvidenceView: Pure derived sorting & filtering
+    EvidenceView->>EvidenceView: Computes filteredAndSortedEvidence
+    EvidenceView->>BrowserDOM: Replaces spinner with <EvidenceCard> DOM nodes
+    BrowserDOM-->>User: Displays "Motor Controller Telemetry Log" on screen
+```
+
+##### End-to-End Pipeline Breakdown
+1. **On-Disk File (`public/data/evidence.json`):**
+   Raw file on disk containing the JSON array of case records, including `E01`.
+2. **Backend REST Endpoint (`server/server.js`):**
+   Express handles `GET /api/evidence`. It applies any simulated delay or error parameters, reads the file via `node:fs/promises`, sets CORS headers, and streams the HTTP response over port `3001`.
+3. **API Access Layer (`src/api/caseApi.ts`):**
+   `caseApi.getEvidence(signal)` dispatches `fetch('/api/evidence', { signal })`. Vite proxies this to the backend. It checks `res.ok`, parses `res.json()`, and returns typed `Promise<Evidence[]>`.
+4. **Custom Hook (`src/hooks/usePortalData.ts` / `useFetch.ts`):**
+   Manages `isLoading`, `error`, and `data` in React state. Inside `finally`, it sets `setIsLoading(false)` and `setData(evidence)`. An `AbortController` guards against unmount or request races.
+5. **UI Component (`src/components/evidence/EvidenceView.tsx`):**
+   Subscribes to hook state. Derives the filtered and sorted list during render, and passes the `E01` object into `<EvidenceCard key="E01" evidence={item} />`.
+6. **What's On Screen:**
+   The browser renders an `<article className="evidence-card">` containing the title, critical warning banner, type badge, formatted timestamp, and bookmark toggle.
+
+---
+
+#### 2. Written UX Decision & Honest Critique
+
+##### The UX Decision: In-Place High-Contrast Error Containers with Instant Retry
+Across all our views (Evidence Catalogue, Investigation Timeline, Team Directory, and Dashboard), when a network request fails (e.g. HTTP 500 error):
+- **Decision:** We render an **in-place, high-contrast error card** (`role="alert"`) directly within the view's primary content area, containing the exact HTTP error explanation and an interactive **`Retry Request`** button.
+- **Honest Justification:**
+  1. *Context Preservation:* Rather than throwing an intrusive modal or full-page blank error screen, displaying the error inline preserves the page shell (header, navigation tabs, filter toolbar). The user never loses their orientation.
+  2. *State & Filter Continuity:* If an investigator typed a complex search query or adjusted 4 filter dropdowns before an error occurred, clicking the inline **"Retry Request"** button re-executes the query without clearing their input fields or resetting their scroll position, which a full browser refresh (`F5`) would destroy.
+
+##### What We Would Do Differently With More Time: Skeleton Loaders (Shimmer Cards)
+- **Current Limitation:** Our loading state currently uses a centralized spinning wheel indicator. While functional, it causes a sudden layout shift when the spinner is replaced with the multi-column card grid.
+- **Future Enhancement:** With more time, we would implement **Skeleton Loading Screens** (pulsing gray wireframe placeholders matching the exact dimensions of `<EvidenceCard>`).
+- **Benefits:**
+  - Eliminates Cumulative Layout Shift (CLS).
+  - Enhances perceived performance: users perceive the application as loading significantly faster when structural containers are visible immediately.
+
+---
+
+### Questions & Answers
+
+#### Q1: Walk through your diagram/illustration live, and for one step, explain what would break (and how you'd notice) if that step silently stopped happening.
+
+**Answer:**
+**The Step Selected: Step 15 — The Hook calling `setIsLoading(false)` inside the `finally` block.**
+
+**What would break:**
+If the custom hook (`useFetch` or `usePortalData`) successfully received the JSON from `caseApi.getEvidence()` and updated `setData(evidence)`, but **silently omitted setting `setIsLoading(false)`**:
+- The component's render function evaluates `if (isLoading) return <Spinner />;`.
+- Even though the evidence data is sitting in memory, `isLoading` remains `true` forever.
+- The component never evaluates the card grid JSX branch.
+
+**How you would notice and diagnose it:**
+1. **User-Facing Symptom:** The user is permanently stuck staring at the spinning loading wheel. The view never transitions to display evidence, and no error message ever appears.
+2. **Network Tab Inspection:** Opening Chrome/Firefox DevTools Network tab reveals that the HTTP request `GET /api/evidence` completed in 24ms with an HTTP 200 OK status code. The network has finished, but the UI is frozen.
+3. **React DevTools Profiler:** Inspecting the component tree in React DevTools reveals the bug immediately: the hook's state shows `data: Array(16)` fully populated, but `isLoading: true`. This instantly pinpoints that the fetch resolved, but the state setter for loading was never executed.
+
+---
+
+#### Q2: Across Exercises 3–6, this app went from "read static files instantly" to "fetch from a real, sometimes-slow, sometimes-failing server". What did that change force you to add that wasn't needed before and was any of it needed *conceptually* even back when the data source was a static file, just less visible?
+
+**Answer:**
+**1. What the Change Forced Us to Add:**
+1. **Tri-State Lifecycle Architecture:** Explicit reactive state for `isLoading`, `error`, and `data` in every data-consuming view.
+2. **Asynchronous Race Protection & Request Cancellation:** Integrating `AbortController` and `useEffect` cleanup functions to kill in-flight requests and drop stale responses when users navigate or switch filters rapidly.
+3. **Resilience & Fault Recovery:** Inline error messaging with interactive `Retry` triggers and fallback mechanisms for static hosting environments.
+4. **Three-Tier Architectural Decoupling:** Isolating raw endpoint URLs in `caseApi.ts` so that server route modifications do not break presentation components.
+
+**2. Was Any of It Needed *Conceptually* Even Back When Data Was a Static File?**
+**YES. Conceptually, every single one of these requirements existed from day one.**
+
+- **The Illusion of Speed:**
+  In Exercises 3–5, because static JSON files were read from local disk via localhost in 0–2ms, the asynchronous network lifecycle was compressed into a fraction of a single frame ($< 16\text{ms}$).
+- **The Reality of Asynchrony:**
+  In JavaScript, calling `fetch('./data/evidence.json')` returns a `Promise`. It is **always asynchronous**. Even with static files, the browser must schedule a microtask before resolving.
+- **Hidden Latency in Production:**
+  The moment that static JSON file is deployed to GitHub Pages and accessed over a mobile cellular connection (3G/4G) or congested public WiFi, network latency immediately jumps to 500ms–2000ms. In that environment, the exact same problems appear:
+  - Without loading states, the user sees a broken blank screen while waiting.
+  - If a user rapidly navigates between routes, requests race each other across the cellular radio.
+  - If a CDN edge has a temporary DNS or socket failure, the static fetch fails.
+- **Conclusion:**
+  Moving to a real Node server did not introduce new concepts; **it unmasked the fundamental realities of the web platform**. Delay and error controls forced us to write the robust, fault-tolerant asynchronous architecture that was conceptually required all along.
+
 
 
 

@@ -17,72 +17,89 @@ export interface PortalData {
   timeline: TimelineEvent[];
   bookmarks: string[];
   isLoading: boolean;
+  error: Error | null;
+  refetch: () => Promise<void>;
 }
 
 export function usePortalData(): PortalData {
-  const [data, setData] = useState<PortalData>(() => ({
+  const [data, setData] = useState<{
+    caseData: Partial<CaseData>;
+    evidence: Evidence[];
+    people: Person[];
+    locations: Location[];
+    timeline: TimelineEvent[];
+    bookmarks: string[];
+  }>(() => ({
     caseData: state.caseData,
     evidence: state.allEvidence,
     people: state.allPeople,
     locations: state.allLocations,
     timeline: state.allTimeline,
     bookmarks: state.bookmarks,
-    isLoading: state.allEvidence.length === 0 || !state.caseData.title,
   }));
 
-  const updateFromState = useCallback(() => {
-    setData({
-      caseData: { ...state.caseData },
-      evidence: [...state.allEvidence],
-      people: [...state.allPeople],
-      locations: [...state.allLocations],
-      timeline: [...state.allTimeline],
-      bookmarks: [...state.bookmarks],
-      isLoading: state.allEvidence.length === 0 || !state.caseData.title,
-    });
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const loadData = useCallback(async (cancelledRef?: { current: boolean }) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log('[usePortalData] Fetching resources from backend /api/* endpoints...');
+      const [caseData, people, locations, timeline, evidence] = await Promise.all([
+        fetchCaseData(),
+        fetchPeopleData(),
+        fetchLocationsData(),
+        fetchTimelineData(),
+        fetchEvidenceData(),
+      ]);
+
+      if (cancelledRef?.current) return;
+
+      // Synchronize shared memory state
+      state.caseData = caseData;
+      state.allPeople = people;
+      state.allLocations = locations;
+      state.allTimeline = timeline;
+      state.allEvidence = evidence;
+      state.filteredEvidence = evidence;
+
+      setData({
+        caseData,
+        people,
+        locations,
+        timeline,
+        evidence,
+        bookmarks: state.bookmarks,
+      });
+      setError(null);
+    } catch (err) {
+      if (cancelledRef?.current) return;
+      console.error('[usePortalData] Network fetch failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      if (!cancelledRef?.current) {
+        setIsLoading(false);
+      }
+    }
   }, []);
 
+  // Demo 5: Data fetching wired inside useEffect
   useEffect(() => {
-    // If state is already populated by app.ts, synchronize immediately
-    if (state.allEvidence.length > 0 && state.caseData.title) {
-      updateFromState();
-      return;
-    }
+    const cancelledRef = { current: false };
 
-    // Listen for custom event from app.ts when loadAllData completes
-    const handleLoaded = () => {
-      updateFromState();
-    };
-    window.addEventListener('portal:dataloaded', handleLoaded);
-
-    // Fallback: If data is not yet in state, fetch directly to guarantee availability
-    const timer = setTimeout(async () => {
-      if (state.allEvidence.length === 0) {
-        try {
-          const [caseData, people, locations, timeline, evidence] = await Promise.all([
-            fetchCaseData(),
-            fetchPeopleData(),
-            fetchLocationsData(),
-            fetchTimelineData(),
-            fetchEvidenceData(),
-          ]);
-          state.caseData = caseData;
-          state.allPeople = people;
-          state.allLocations = locations;
-          state.allTimeline = timeline;
-          state.allEvidence = evidence;
-          updateFromState();
-        } catch (err) {
-          console.error('Failed to load portal data in React:', err);
-        }
-      }
-    }, 200);
+    loadData(cancelledRef);
 
     return () => {
-      window.removeEventListener('portal:dataloaded', handleLoaded);
-      clearTimeout(timer);
+      cancelledRef.current = true;
     };
-  }, [updateFromState]);
+  }, [loadData]);
 
-  return data;
+  return {
+    ...data,
+    isLoading,
+    error,
+    refetch: loadData,
+  };
 }

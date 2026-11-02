@@ -43,9 +43,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
 
   // Synchronize when data loader finishes
   useEffect(() => {
-    if (masterEvidence.length > 0) {
-      setEvidenceList(masterEvidence);
-    }
+    setEvidenceList(masterEvidence);
   }, [masterEvidence]);
 
   // Demo 10: Declarative person filter synchronization (eliminates manual DOM manipulation)

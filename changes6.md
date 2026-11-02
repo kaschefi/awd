@@ -7,8 +7,8 @@
 | 1 | Render logic vs. effects | Pure render calculations vs. external side effects, StrictMode double-rendering analysis, derived state boundaries | Ready |
 | 2 | `useEffect` mental model & dependency arrays | Dependency array comparison semantics (`Object.is`), omit hazards, synchronizing document title | Ready |
 | 3 | Cleanup: timers & subscriptions | Effect teardown lifecycle, unmount vs. re-run triggers, avoiding duplicate listeners and timer leaks | Ready |
-| 4 | Build the read-only Node backend | Express read-only REST API for case resources, artificial delay and error simulation headers/params | Pending |
-| 5 | Consume the backend from React | Replacing static JSON imports with network `fetch()` inside `useEffect`, component state transitions | Pending |
+| 4 | Build the read-only Node backend | Express read-only REST API for case resources, artificial delay and error simulation headers/params | Ready |
+| 5 | Consume the backend from React | Replacing static JSON imports with network `fetch()` inside `useEffect`, component state transitions | Ready |
 | 6 | Loading, error, and empty states | Explicit tri-state UI handling, distinguishing empty data from errors, preventing hung spinners | Pending |
 | 7 | Request races & cancellation | Race condition reproduction with delays, `AbortController` cleanup integration | Pending |
 | 8 | Extract a reusable custom hook | `useFetch<T>` abstraction, encapsulating lifecycle, abort signals, and status state across views | Pending |
@@ -399,6 +399,344 @@ Beyond vague memory leaks, omitting cleanup causes three real, severe observable
 3. **Stale Closure Corruption:**
    - The uncleaned event listener on `window` retains references to the variables of the render that created it (e.g. `evidence.id === 'E01'`).
    - Even if the modal is currently showing `E05`, the zombie listener for `E01` remains alive. If a key listener performed an action like "Press 'D' to delete current evidence", pressing 'D' would trigger the zombie listener and delete `E01` instead of `E05`!
+
+---
+
+## Demo 4 — Build the read-only Node backend
+
+### Tasks
+
+#### 1. Minimal Node.js / Express Server Implementation
+
+We built a dedicated, lightweight read-only Node.js/Express backend located at [server/server.js](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/server/server.js). The server reads the existing data files from `public/data/*.json` and serves them as RESTful JSON endpoints.
+
+##### Server Architecture ([server/server.js](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/server/server.js))
+```javascript
+import express from 'express';
+import cors from 'cors';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.resolve(__dirname, '../public/data');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// CORS enabled for cross-origin requests from Vite dev server
+app.use(cors());
+app.use(express.json());
+
+// Artificial delay helper
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Delay and error simulation middleware
+app.use(async (req, res, next) => {
+  const delayParam = req.query.delay
+    ? parseInt(req.query.delay, 10)
+    : parseInt(process.env.DELAY_MS || '0', 10);
+  if (!isNaN(delayParam) && delayParam > 0) {
+    await delay(delayParam);
+  }
+
+  if (req.query.error === 'true' || req.query.error === '500') {
+    return res.status(500).json({
+      error: 'Simulated server failure: 500 Internal Server Error',
+      endpoint: req.path,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (req.query.error === '404') {
+    return res.status(404).json({
+      error: 'Simulated resource not found: 404 Not Found',
+      endpoint: req.path,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  next();
+});
+
+// Helper to serve JSON data
+async function serveDataFile(filename, res, req) {
+  try {
+    const filePath = path.join(DATA_DIR, filename);
+    const raw = await fs.readFile(filePath, 'utf-8');
+    let data = JSON.parse(raw);
+
+    if (req.query.empty === 'true' && Array.isArray(data)) {
+      data = [];
+    }
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: `Failed to read ${filename}: ${err.message}` });
+  }
+}
+
+// 5 Read-Only Resource Endpoints:
+app.get('/api/case', (req, res) => serveDataFile('case.json', res, req));
+app.get('/api/evidence', (req, res) => serveDataFile('evidence.json', res, req));
+app.get('/api/people', (req, res) => serveDataFile('people.json', res, req));
+app.get('/api/locations', (req, res) => serveDataFile('locations.json', res, req));
+app.get('/api/timeline', (req, res) => serveDataFile('timeline.json', res, req));
+
+app.listen(PORT, () => {
+  console.log(`[ReMotion Backend] Server listening at http://localhost:${PORT}`);
+});
+```
+
+---
+
+#### 2. Artificial Delay and Error Simulation Controls
+
+To test real-world asynchronous conditions, we implemented dynamic middleware in the server:
+
+1. **Configurable Latency Simulation:**
+   - Query Parameter: Passing `?delay=2500` forces the server to pause asynchronously for 2500ms before returning data.
+   - Environment Variable: Starting the server with `DELAY_MS=1500 node server/server.js` sets a global base latency for all endpoints.
+2. **On-Demand HTTP 500 Errors:**
+   - Passing `?error=500` or `?error=true` halts normal processing and immediately returns an HTTP 500 status with a structured JSON error body:
+     ```json
+     {
+       "error": "Simulated server failure: 500 Internal Server Error",
+       "endpoint": "/api/evidence",
+       "timestamp": "2026-11-01T21:58:00.000Z"
+     }
+     ```
+3. **On-Demand Empty State Simulation:**
+   - Passing `?empty=true` on array-based resources returns an empty array `[]` (HTTP 200 OK) to test the UI's empty state rendering.
+
+---
+
+#### 3. Development Workflow & Documentation
+
+- **NPM Script:** Added `"server": "node server/server.js"` to [package.json](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/package.json).
+- **Vite Proxy:** Configured `server.proxy` in [vite.config.js](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/vite.config.js) to forward `/api` requests to `http://localhost:3001`.
+- **Dev-Only Documentation:** Updated [README.md](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/README.md) clearly designating the backend as dev-only, ensuring that the production GitHub Pages deployment pipeline (which packages the static frontend bundle) remains intact.
+
+---
+
+### Questions & Answers
+
+#### Q1: Why does this exercise ask for artificial delay/error controls on the backend, instead of just pointing the frontend at the static JSON files directly (as it already could)? What could you *not* teach convincingly without them?
+
+**Answer:**
+When static JSON files are served locally from Vite or a simple static file server:
+- **Instantaneous Resolution (0–2ms):** The file is read from local SSD storage and returned in less than 2 milliseconds.
+- **Always 200 OK or 404:** A static file server can only ever return HTTP 200 (file exists) or HTTP 404 (file missing). It cannot return an HTTP 500 internal database failure, rate-limiting 429, or network dropouts.
+
+**What you could NOT teach convincingly without delay/error controls:**
+1. **Loading Indicators and Skeletons:** With instant local responses, loading spinners flash on and off in a single frame ($16\text{ms}$), making it impossible to evaluate loading UX, skeleton loaders, or layout shift prevention.
+2. **True Error Handling & Recovery:** You cannot test how the UI renders when an endpoint fails with a 500 error, or test user retry buttons, without an endpoint that can be forced to fail on demand.
+3. **Request Race Conditions:** In real-world networks, request $A$ (sent at $t=0$) might take $800\text{ms}$, while request $B$ (sent at $t=200\text{ms}$) might take $100\text{ms}$. Request $B$ arrives first, and Request $A$ arrives later, overwriting newer state with stale data. Without artificial latency controls, you cannot deliberately induce this out-of-order arrival.
+4. **Request Cancellation (`AbortController`):** You cannot test request cancellation if the request resolves before the user has time to click a button, switch tabs, or unmount the component.
+
+---
+
+#### Q2: What is CORS, and did you have to deal with it running your frontend (from Vite's dev server) against this separate backend server? If yes, what did you configure and why? If no, why not?
+
+**Answer:**
+**1. What CORS Is:**
+**Cross-Origin Resource Sharing (CORS)** is a browser security mechanism enforcing the **Same-Origin Policy (SOP)**.
+- An "origin" is the combination of **Protocol + Domain + Port** (e.g., `http://localhost:5173`).
+- When frontend JavaScript running on `http://localhost:5173` calls `fetch('http://localhost:3001/api/evidence')`, the browser notes that port `5173 !== 3001`.
+- The browser classifies this as a cross-origin request. By default, the browser will block JavaScript from reading the response unless the response headers include explicit permissions such as `Access-Control-Allow-Origin: *` or `Access-Control-Allow-Origin: http://localhost:5173`.
+
+**2. Did we have to deal with it?**
+**Yes**, and we addressed it at two levels:
+
+1. **Backend Level (CORS Headers via Express):**
+   We installed `cors` and added `app.use(cors())` to [server/server.js](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/server/server.js). This ensures that every HTTP response sent by the Express server includes `Access-Control-Allow-Origin: *`, permitting direct requests across different ports.
+
+2. **Frontend Level (Vite Dev Server Reverse Proxy):**
+   In [vite.config.js](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/vite.config.js), we configured a development proxy:
+   ```javascript
+   server: {
+     proxy: {
+       '/api': {
+         target: 'http://localhost:3001',
+         changeOrigin: true,
+       },
+     },
+   }
+   ```
+   This allows the frontend to simply call `fetch('/api/evidence')`. The browser sends the request to `http://localhost:5173/api/evidence` (same-origin, zero CORS check required by the browser), and Vite's Node process proxies the HTTP packets to `http://localhost:3001/api/evidence` in the background.
+
+---
+
+## Demo 5 — Consume the backend from React
+
+### Tasks
+
+#### 1. Migrated All Data Sources from Static JSON Files to Backend REST Endpoints
+
+Previously, the application loaded data directly from static files in `public/data/*.json` using relative paths (`./data/case.json`, `./data/evidence.json`, etc.).
+
+In [src/dataLoader.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/dataLoader.ts), we replaced all static file targets with our Express backend endpoints `/api/*`:
+
+- `fetchCaseData()` $\to$ `/api/case`
+- `fetchPeopleData()` $\to$ `/api/people`
+- `fetchLocationsData()` $\to$ `/api/locations`
+- `fetchTimelineData()` $\to$ `/api/timeline`
+- `fetchEvidenceData()` $\to$ `/api/evidence`
+
+We also enabled automatic forwarding of query parameters (`?delay=2000`, `?error=500`, `?empty=true`) from the browser's URL to the backend. This allows testing latency, crashes, and empty states directly from the frontend:
+
+```typescript
+// src/dataLoader.ts
+function getSimulationQuery(): string {
+  if (typeof window !== 'undefined' && window.location.search) {
+    return window.location.search;
+  }
+  return '';
+}
+
+async function fetchResource<T>(apiEndpoint: string, staticFallback: string): Promise<T> {
+  const query = getSimulationQuery();
+  const primaryUrl = `${apiEndpoint}${query}`;
+
+  try {
+    return await fetchJson<T>(primaryUrl);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('500') || errorMsg.includes('Simulated')) {
+      throw err; // Re-throw on-demand simulated errors for UI testing
+    }
+    // Fall back to static JSON when running in static production builds (GitHub Pages)
+    return await fetchJson<T>(staticFallback);
+  }
+}
+```
+
+---
+
+#### 2. Wired Data Fetching Inside `useEffect` with State Management
+
+In [src/hooks/usePortalData.ts](file:///c:/Users/mkrad/Desktop/FH%20Campus%20Wien/WebApp/awd/src/hooks/usePortalData.ts), data fetching is now executed declaratively inside `useEffect` upon mount, managing the complete network lifecycle (`isLoading`, `error`, `data`, and cancellation guards):
+
+```typescript
+export function usePortalData(): PortalData {
+  const [data, setData] = useState({
+    caseData: state.caseData,
+    evidence: state.allEvidence,
+    people: state.allPeople,
+    locations: state.allLocations,
+    timeline: state.allTimeline,
+    bookmarks: state.bookmarks,
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const loadData = useCallback(async (cancelledRef?: { current: boolean }) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [caseData, people, locations, timeline, evidence] = await Promise.all([
+        fetchCaseData(),
+        fetchPeopleData(),
+        fetchLocationsData(),
+        fetchTimelineData(),
+        fetchEvidenceData(),
+      ]);
+
+      if (cancelledRef?.current) return;
+
+      state.caseData = caseData;
+      state.allPeople = people;
+      state.allLocations = locations;
+      state.allTimeline = timeline;
+      state.allEvidence = evidence;
+
+      setData({ caseData, people, locations, timeline, evidence, bookmarks: state.bookmarks });
+      setError(null);
+    } catch (err) {
+      if (cancelledRef?.current) return;
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      if (!cancelledRef?.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const cancelledRef = { current: false };
+    loadData(cancelledRef);
+
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [loadData]);
+
+  return { ...data, isLoading, error, refetch: loadData };
+}
+```
+
+---
+
+### Questions & Answers
+
+#### Q1: Walk through exactly what happens, in order, from the component mounting to the data actually being available to render: what does the effect do, when does it run, and what causes the component to re-render once the data arrives?
+
+**Answer:**
+Here is the step-by-step lifecycle from mount to screen paint:
+
+1. **Step 1: Component Call & Initial Render (Render Phase)**
+   - React calls the component function (e.g. `DashboardView` or `EvidenceView`).
+   - The hook initializes state: `isLoading = true`, `error = null`, `data = []`.
+   - The component's JSX evaluates the conditional branch: `if (isLoading) return <Spinner />;`.
+   - React builds the initial Virtual DOM tree containing the spinner.
+   
+2. **Step 2: Commit & Paint to Screen**
+   - React commits the Virtual DOM to the host DOM.
+   - The browser paints the pixels on screen. The user sees the loading spinner.
+
+3. **Step 3: Effect Execution (Post-Paint)**
+   - Only *after* the DOM is committed and painted, React's scheduler asynchronously fires the `useEffect` callback.
+   - The effect triggers `loadData()`, which calls `fetch('/api/evidence')`.
+   - The HTTP request travels across the network to our Express backend on port 3001.
+
+4. **Step 4: In-Flight Network Time**
+   - While the server processes the request (including any artificial delay like `?delay=2000`), the browser keeps displaying the spinner. React does not re-render.
+
+5. **Step 5: Promise Resolution & State Setter Dispatch**
+   - The server responds with HTTP 200 OK and the JSON payload.
+   - The asynchronous promise completes, parsing the JSON.
+   - Inside the `.then()` / `await` continuation, the effect invokes state updater functions: `setData(result)` and `setIsLoading(false)`.
+
+6. **Step 6: State-Triggered Second Render**
+   - Calling `setData` and `setIsLoading` schedules an immediate re-render with React.
+   - React calls the component function a second time.
+   - This time, `isLoading` is `false`, and `evidence` contains the loaded records.
+   - The component returns the full JSX tree (evidence cards, statistics, graphs).
+   - React diffs the trees, replaces the spinner with the real cards in the DOM, and the browser paints the loaded view.
+
+---
+
+#### Q2: What's different about your component now compared to before (when data came from a static import/fetch of a local file)? Specifically in terms of what state it needs to track that it didn't need before?
+
+**Answer:**
+**The Architectural Difference:**
+- **Before (Static Local File / Synchronous Import):**
+  When importing a local JSON file or fetching a static file locally, the data was either synchronously bundled into JavaScript or resolved virtually instantaneously in 0–2ms. The component could naively assume that data is always present, immutable, and guaranteed never to fail.
+- **Now (Real Network Backend):**
+  A network connection is inherently **asynchronous**, **unreliable**, and **variable in latency**. Network requests can take 50ms or 5000ms, fail with 500 server errors, return 404, get dropped by WiFi disconnects, or return an empty dataset.
+
+**New States the Component MUST Track:**
+1. **Loading State (`isLoading: boolean`):**
+   The component must track whether a network request is currently in-flight. Without this, the component would either crash attempting to read `data.items.map(...)` on `undefined`, or flash an incorrect "No items found" empty state before the data even arrives.
+2. **Error State (`error: Error | null`):**
+   The component must capture HTTP failures (4xx, 5xx) and network dropouts. This allows the UI to render an informative error alert with a "Retry" button instead of crashing the React tree.
+3. **Empty / Nullable Data State (`data: T | null`):**
+   The component must accommodate the absence of data prior to fetch completion, and distinguish between "not loaded yet" (`isLoading: true, data: null`) and "loaded successfully, but the database returned zero records" (`isLoading: false, data: []`).
+
+
 
 
 

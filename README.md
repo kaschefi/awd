@@ -35,6 +35,39 @@ npx serve .
 
 Then open `http://localhost:8080` (or whatever port your server prints) in your browser.
 
+## Development Backend Server (Exercise 6)
+
+In Exercise 6, the application introduces a lightweight read-only Node.js/Express backend (`server/server.js`) to simulate real-world networking, delays, and HTTP error responses.
+
+> **Note (Dev-Only):** This backend is strictly for local development and live classroom demonstrations. It is **not deployed** to GitHub Pages (which continues to host the static frontend bundle).
+
+### Starting the Servers Locally
+
+Run the backend and frontend in separate terminals:
+
+```bash
+# Terminal 1: Start the Express backend (Port 3001)
+pnpm run server
+
+# Terminal 2: Start the Vite React development server (Port 5173)
+pnpm run dev
+```
+
+### Backend Endpoints & Simulation Parameters
+
+- **GET `/api/case`**: Returns `case.json`
+- **GET `/api/evidence`**: Returns `evidence.json`
+- **GET `/api/people`**: Returns `people.json`
+- **GET `/api/locations`**: Returns `locations.json`
+- **GET `/api/timeline`**: Returns `timeline.json`
+
+#### Live Simulation Query Parameters:
+- `?delay=<ms>`: Artificially delays the response (e.g. `http://localhost:3001/api/evidence?delay=2500`).
+- `?error=500` or `?error=true`: Simulates an HTTP 500 Internal Server Error.
+- `?error=404`: Simulates an HTTP 404 Not Found response.
+- `?empty=true`: Simulates an empty dataset (e.g. `[]`) for testing empty states.
+
+
 ## Features
 
 - **Dashboard** — case summary and key statistics calculated from the loaded case data.
